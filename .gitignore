@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[oc]
+*.egg-info/
+build/
+dist/
+wheels/
+
+# Virtual envs
+.venv/
+
+# Test / coverage
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# IDE / editor session state
+.claude/
+.idea/
+.vscode/
+
+# Runtime app state (LightBurn Bridge)
+profiles.sqlite
+audit.log
+
+# OS
+.DS_Store
+Thumbs.db
