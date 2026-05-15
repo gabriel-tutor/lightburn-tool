@@ -1,0 +1,20 @@
+[importlinter]
+root_package = lbb
+
+[importlinter:contract:core-purity]
+name = core/ has no I/O imports
+type = forbidden
+source_modules =
+    lbb.core
+forbidden_modules =
+    lbb.adapters
+    lbb.ui
+    lbb.app
+
+[importlinter:contract:ui-isolation]
+name = ui/ cannot reach adapters directly
+type = forbidden
+source_modules =
+    lbb.ui
+forbidden_modules =
+    lbb.adapters
