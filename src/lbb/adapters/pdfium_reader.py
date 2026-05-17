@@ -36,6 +36,23 @@ def _stroke_color_rgb(obj) -> tuple[int, int, int] | None:
     return r.value, g.value, b.value
 
 
+# PDF path segment type constants (FPDF_SEGMENT_*)
+_PDF_SEG_LINETO = 0
+_PDF_SEG_BEZIERTO = 1
+_PDF_SEG_MOVETO = 2
+
+# Coords from pdfium can drift by a few thousandths of a mm vs. the source design;
+# round to this precision when emitting SVG so the output is stable and clean.
+_MM_PRECISION = 2
+
+
+def _fmt_mm(n: float) -> str:
+    """Format a millimetre value: integers as int, decimals trimmed of trailing zeros."""
+    if n == int(n):
+        return str(int(n))
+    return f"{n:.{_MM_PRECISION}f}".rstrip("0").rstrip(".")
+
+
 # ── pypdfium2 wrapper (covered by gated integration test) ───────────────────
 
 
@@ -65,6 +82,30 @@ class PdfiumReader(PdfReader):
         finally:
             pdf.close()
 
+    def extract_paths(self, path: Path) -> list[tuple[str, str]]:
+        """Return list of (svg_d, stroke_color_hex). Coords are mm, top-left Y-down.
+
+        Skips BEZIERTO segments (MVP supports straight lines only — curves
+        are a future enhancement to both this reader and build_lbrn2).
+        """
+        pdf = pdfium.PdfDocument(str(path))
+        try:
+            page = pdf[0]
+            page_h_mm = pt_to_mm(page.get_height())
+            results: list[tuple[str, str]] = []
+            for obj in page.get_objects():
+                if obj.type != pdfium_raw.FPDF_PAGEOBJ_PATH:
+                    continue
+                rgb = _stroke_color_rgb(obj)
+                if rgb is None:
+                    continue
+                d = _path_to_svg_d(obj, page_h_mm)
+                if d:
+                    results.append((d, color_to_hex(*rgb)))
+            return results
+        finally:
+            pdf.close()
+
     def render_thumbnail_png(self, path: Path, max_px: int) -> bytes:
         pdf = pdfium.PdfDocument(str(path))
         try:
@@ -76,3 +117,33 @@ class PdfiumReader(PdfReader):
             return buf.getvalue()
         finally:
             pdf.close()
+
+
+def _path_to_svg_d(path_obj, page_h_mm: float) -> str:
+    """Walk a pdfium path object's segments and emit a canonical SVG-path string."""
+    n_seg = pdfium_raw.FPDFPath_CountSegments(path_obj.raw)
+    tokens: list[str] = []
+    subpath_start: tuple[float, float] | None = None
+    for j in range(n_seg):
+        seg = pdfium_raw.FPDFPath_GetPathSegment(path_obj.raw, j)
+        x_pt, y_pt = ctypes.c_float(), ctypes.c_float()
+        if not pdfium_raw.FPDFPathSegment_GetPoint(seg, ctypes.byref(x_pt), ctypes.byref(y_pt)):
+            continue
+        x_mm = round(pt_to_mm(x_pt.value), _MM_PRECISION)
+        y_mm = round(page_h_mm - pt_to_mm(y_pt.value), _MM_PRECISION)
+        seg_type = pdfium_raw.FPDFPathSegment_GetType(seg)
+        is_close = bool(pdfium_raw.FPDFPathSegment_GetClose(seg))
+
+        if seg_type == _PDF_SEG_MOVETO:
+            tokens.append(f"M {_fmt_mm(x_mm)} {_fmt_mm(y_mm)}")
+            subpath_start = (x_mm, y_mm)
+        elif seg_type == _PDF_SEG_LINETO:
+            # Deduplicate the redundant closing line that re-targets the subpath start.
+            if is_close and subpath_start == (x_mm, y_mm):
+                tokens.append("Z")
+            else:
+                tokens.append(f"L {_fmt_mm(x_mm)} {_fmt_mm(y_mm)}")
+                if is_close:
+                    tokens.append("Z")
+        # BEZIERTO and any unknown type: skip (MVP straight-lines only).
+    return " ".join(tokens)
