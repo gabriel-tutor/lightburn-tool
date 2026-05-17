@@ -1,5 +1,6 @@
 import socket
 import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -55,7 +56,7 @@ def test_is_running_true_when_responds(fake_lb):
 
 def test_is_running_false_when_no_response():
     # Port 1 has no UDP listener on any sane host — round-trip times out.
-    adapter = LightBurnUDPAdapter(host="127.0.0.1", port=1, timeout=0.1)
+    adapter = LightBurnUDPAdapter(host="127.0.0.1", port=1, ping_timeout=0.05)
     assert not adapter.is_running()
 
 
@@ -71,9 +72,20 @@ def test_load_file_sends_correct_command(tmp_path):
 
 
 def test_load_file_raises_when_not_running():
-    adapter = LightBurnUDPAdapter(host="127.0.0.1", port=1, timeout=0.1)
+    adapter = LightBurnUDPAdapter(host="127.0.0.1", port=1, ping_timeout=0.05)
     with pytest.raises(LightBurnNotRunning):
         adapter.load_file(Path("/tmp/x.lbrn2"))
+
+
+def test_is_running_returns_within_ping_timeout_when_no_listener():
+    """The poll-path must fail fast — this would have caught the GUI-freeze bug."""
+    adapter = LightBurnUDPAdapter(host="127.0.0.1", port=1, ping_timeout=0.1)
+    started = time.monotonic()
+    result = adapter.is_running()
+    elapsed = time.monotonic() - started
+    assert result is False
+    # Generous bound to keep CI happy; the real check is that we don't block for seconds.
+    assert elapsed < 0.5, f"is_running blocked for {elapsed:.2f}s — UI would freeze"
 
 
 def test_load_file_raises_on_non_ok_response(tmp_path):
