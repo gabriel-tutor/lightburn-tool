@@ -20,10 +20,13 @@ class PreflightFailed(LbbError):
 
 
 class LightBurnNotRunning(LbbError):
-    """LightBurn does not respond to PING on UDP 127.0.0.1:19840."""
+    """LightBurn isn't responding — process not found or UDP listener silent."""
+
+    def __init__(self, msg: str | None = None):
+        super().__init__(msg or "LightBurn isn't running. Open LightBurn and try again.")
 
 
 class LightBurnRejected(LbbError):
-    def __init__(self, response: bytes):
+    def __init__(self, response: bytes | str):
         super().__init__(f"LightBurn rejected request: {response!r}")
         self.response = response
