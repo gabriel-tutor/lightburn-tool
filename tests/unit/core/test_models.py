@@ -1,4 +1,5 @@
 import pytest
+
 from lbb.core.models import Material, Sku, SkuProfile, Template
 
 
