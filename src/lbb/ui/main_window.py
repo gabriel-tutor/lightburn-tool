@@ -17,6 +17,7 @@ from lbb.app.pipeline import PipelineDeps, run_pipeline
 from lbb.core.errors import LbbError
 from lbb.core.extractor import extract_sku
 from lbb.core.preflight import run_preflight
+from lbb.ui.views.admin import AdminView
 from lbb.ui.views.home import HomeView
 from lbb.ui.views.job_preview import JobPreviewView
 
@@ -35,13 +36,17 @@ class MainWindow(QMainWindow):
         self.stack = QStackedWidget()
         self.home = HomeView(deps.lightburn)
         self.preview = JobPreviewView()
+        self.admin = AdminView(deps.repo)
         self.stack.addWidget(self.home)
         self.stack.addWidget(self.preview)
+        self.stack.addWidget(self.admin)
         self.setCentralWidget(self.stack)
 
         self.home.pdf_chosen.connect(self._on_pdf_chosen)
+        self.home.open_admin.connect(lambda: self.stack.setCurrentWidget(self.admin))
         self.preview.cancel_requested.connect(self._show_home)
         self.preview.send_requested.connect(self._on_send)
+        self.admin.back_requested.connect(self._show_home)
 
         self._pending_pdf: Path | None = None
 
