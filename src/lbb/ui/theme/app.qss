@@ -1,0 +1,94 @@
+/* LightBurn Bridge — dark theme.
+   See tokens.py for the canonical color reference; QSS values must stay in sync.
+*/
+
+* {
+    font-family: "Inter", "IBM Plex Sans", "SF Pro Text", "Segoe UI", sans-serif;
+    color: #E5E7EB;
+}
+
+QMainWindow, QDialog, QWidget {
+    background: #0B0D12;
+}
+
+QLabel {
+    color: #E5E7EB;
+}
+
+/* Status pill colors driven by setObjectName(). */
+QLabel#statusOk    { color: #A3E635; font-weight: 600; }
+QLabel#statusWarn  { color: #FBBF24; font-weight: 600; }
+QLabel#statusError { color: #FB7185; font-weight: 600; }
+
+/* Buttons */
+QPushButton {
+    background: #1B2030;
+    border: 1px solid #252A38;
+    border-radius: 8px;
+    padding: 8px 16px;
+}
+QPushButton:hover {
+    border-color: #7DD3FC;
+}
+QPushButton:pressed {
+    background: #141821;
+}
+
+QPushButton#sendButton {
+    background: #7DD3FC;
+    color: #0B0D12;
+    font-weight: 600;
+    border: 1px solid #7DD3FC;
+}
+QPushButton#sendButton:disabled {
+    background: #252A38;
+    color: #94A3B8;
+    border-color: #252A38;
+}
+
+/* Drop zone — the operator's primary affordance */
+QFrame#dropZone {
+    border: 2px dashed #252A38;
+    border-radius: 16px;
+    background: #141821;
+}
+QFrame#dropZone[active="true"] {
+    border-color: #7DD3FC;
+    background: #1B2030;
+}
+
+/* Tables (admin views) */
+QTableView {
+    background: #141821;
+    alternate-background-color: #1B2030;
+    gridline-color: #252A38;
+    selection-background-color: #7DD3FC;
+    selection-color: #0B0D12;
+}
+QHeaderView::section {
+    background: #1B2030;
+    color: #E5E7EB;
+    padding: 6px 10px;
+    border: none;
+    border-bottom: 1px solid #252A38;
+}
+
+/* Tabs */
+QTabWidget::pane {
+    border: 1px solid #252A38;
+    border-radius: 8px;
+    background: #141821;
+}
+QTabBar::tab {
+    background: #141821;
+    color: #94A3B8;
+    padding: 8px 16px;
+    border: 1px solid #252A38;
+    border-bottom: none;
+    border-top-left-radius: 6px;
+    border-top-right-radius: 6px;
+}
+QTabBar::tab:selected {
+    background: #1B2030;
+    color: #E5E7EB;
+}

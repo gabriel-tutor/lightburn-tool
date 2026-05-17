@@ -14,7 +14,9 @@ dependencies = [
 
 [project.optional-dependencies]
 ui = [
-    "PySide6>=6.7",
+    # Essentials = QtCore/QtGui/QtWidgets (~105MB). The full PySide6 meta-package
+    # adds 316MB of Addons (WebEngine, Multimedia, Qt3D, etc.) we don't use.
+    "PySide6-Essentials>=6.7",
     "pytest-qt>=4.4",
 ]
 
