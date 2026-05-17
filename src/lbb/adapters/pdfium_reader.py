@@ -1,7 +1,9 @@
+import ctypes
 import io
 from pathlib import Path
 
 import pypdfium2 as pdfium
+import pypdfium2.raw as pdfium_raw
 
 from lbb.core.preflight import PdfInfo
 from lbb.ports.pdf import PdfReader
@@ -19,6 +21,21 @@ def pt_to_mm(pt: float) -> float:
     return pt * 25.4 / 72.0
 
 
+def _stroke_color_rgb(obj) -> tuple[int, int, int] | None:
+    """Pull a path object's stroke colour via pdfium's FFI. None if unavailable.
+
+    pypdfium2 5.x doesn't surface this on the high-level PdfObject — we have to
+    drop into the raw C API.
+    """
+    r, g, b, a = (ctypes.c_uint() for _ in range(4))
+    ok = pdfium_raw.FPDFPageObj_GetStrokeColor(
+        obj.raw, ctypes.byref(r), ctypes.byref(g), ctypes.byref(b), ctypes.byref(a)
+    )
+    if not ok:
+        return None
+    return r.value, g.value, b.value
+
+
 # ── pypdfium2 wrapper (covered by gated integration test) ───────────────────
 
 
@@ -33,11 +50,12 @@ class PdfiumReader(PdfReader):
             is_vector_only = True
             stroke_colors: set[str] = set()
             for obj in page.get_objects():
-                if obj.type == pdfium.raw.FPDF_PAGEOBJ_IMAGE:
+                if obj.type == pdfium_raw.FPDF_PAGEOBJ_IMAGE:
                     is_vector_only = False
-                elif obj.type == pdfium.raw.FPDF_PAGEOBJ_PATH:
-                    r, g, b, _ = obj.get_stroke_color()
-                    stroke_colors.add(color_to_hex(r, g, b))
+                elif obj.type == pdfium_raw.FPDF_PAGEOBJ_PATH:
+                    rgb = _stroke_color_rgb(obj)
+                    if rgb is not None:
+                        stroke_colors.add(color_to_hex(*rgb))
             return PdfInfo(
                 page_count=n_pages,
                 is_vector_only=is_vector_only,
