@@ -9,7 +9,7 @@ from lbb.core.template_builder import (
     locate_placeholder,
 )
 
-TEMPLATE = Path(__file__).parents[2] / "fixtures" / "templates" / "wallet-small.lbrn2"
+TEMPLATE = Path(__file__).parents[3] / "templates" / "wallet-small.lbrn2"
 
 
 def test_finds_placeholder_group():

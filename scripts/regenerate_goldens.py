@@ -20,7 +20,7 @@ from pathlib import Path
 from lbb.core.template_builder import build_lbrn2
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-TEMPLATE_DIR = REPO_ROOT / "tests" / "fixtures" / "templates"
+TEMPLATE_DIR = REPO_ROOT / "templates"
 GOLDEN_DIR = REPO_ROOT / "tests" / "golden"
 
 

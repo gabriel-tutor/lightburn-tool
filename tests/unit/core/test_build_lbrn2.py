@@ -4,7 +4,7 @@ from lxml import etree
 
 from lbb.core.template_builder import build_lbrn2, locate_placeholder
 
-TEMPLATE = Path(__file__).parents[2] / "fixtures" / "templates" / "wallet-small.lbrn2"
+TEMPLATE = Path(__file__).parents[3] / "templates" / "wallet-small.lbrn2"
 GOLDEN = Path(__file__).parents[2] / "golden" / "wallet-small-rect.lbrn2"
 
 RECT_PATH = "M 10 10 L 60 10 L 60 50 L 10 50 Z"

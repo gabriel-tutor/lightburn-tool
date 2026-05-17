@@ -9,9 +9,9 @@ from lbb.app.job import Job
 from lbb.app.pipeline import PipelineDeps, run_pipeline
 from lbb.core.models import Material, Sku, SkuProfile, Template
 
-FIXTURE_DIR = Path(__file__).parents[1] / "fixtures"
-PDF_DEMO = FIXTURE_DIR / "pdfs" / "LB-WALLET-LEATHER-S__demo.pdf"
-TEMPLATE = FIXTURE_DIR / "templates" / "wallet-small.lbrn2"
+REPO_ROOT = Path(__file__).parents[2]
+PDF_DEMO = REPO_ROOT / "tests" / "fixtures" / "pdfs" / "LB-WALLET-LEATHER-S__demo.pdf"
+TEMPLATE = REPO_ROOT / "templates" / "wallet-small.lbrn2"
 
 
 def _seed_wallet_profile(repo: SqliteProfileRepository) -> SkuProfile:
