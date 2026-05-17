@@ -33,7 +33,9 @@ a = Analysis(
     excludes=[
         # Dev-only — fpdf2 is for fixture generation, not production.
         "fpdf",
-        "PIL",
+        # NOTE: PIL is NOT excluded — render_thumbnail_png needs it at runtime.
+        # Excluding it caused a silent crash where Qt swallowed the ImportError
+        # and the UI appeared to ignore PDF selection.
     ],
     cipher=block_cipher,
     noarchive=False,

@@ -18,6 +18,10 @@ ui = [
     # adds 316MB of Addons (WebEngine, Multimedia, Qt3D, etc.) we don't use.
     "PySide6-Essentials>=6.7",
     "pytest-qt>=4.4",
+    # Pillow is needed by PdfiumReader.render_thumbnail_png — pypdfium2's
+    # .to_pil() returns a PIL.Image which we then save as PNG. Without this,
+    # the controller crashes silently when a PDF is chosen.
+    "Pillow>=10.0",
 ]
 
 [dependency-groups]

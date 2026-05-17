@@ -76,12 +76,23 @@ class MainWindow(QMainWindow):
             )
             return
 
-        info = self.deps.pdf.read_info(path)
-        preflight = run_preflight(
-            info,
-            canvas_mm=(profile.template.canvas_w_mm, profile.template.canvas_h_mm),
-        )
-        png = self.deps.pdf.render_thumbnail_png(path, _THUMB_PX)
+        # Belt-and-braces: catch anything unexpected (missing bundled dep, PDF
+        # parser blowing up, etc.) so the user sees an error instead of a
+        # silently-frozen home screen.
+        try:
+            info = self.deps.pdf.read_info(path)
+            preflight = run_preflight(
+                info,
+                canvas_mm=(profile.template.canvas_w_mm, profile.template.canvas_h_mm),
+            )
+            png = self.deps.pdf.render_thumbnail_png(path, _THUMB_PX)
+        except Exception as e:  # noqa: BLE001
+            QMessageBox.critical(
+                self,
+                "Couldn't open PDF",
+                f"{type(e).__name__}: {e}\n\nFile: {path}",
+            )
+            return
 
         self.preview.populate(thumbnail_png=png, profile=profile, preflight=preflight)
         self._pending_pdf = path
