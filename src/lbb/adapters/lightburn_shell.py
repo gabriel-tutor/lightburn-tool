@@ -39,8 +39,22 @@ class LightBurnShellAdapter(LightBurnPort):
         return ["xdg-open", str(path)]
 
     def is_running(self) -> bool:
-        """Check via pgrep on POSIX. Returns False if pgrep is unavailable."""
+        return self._is_running(platform=sys.platform)
+
+    def _is_running(self, *, platform: str) -> bool:
+        """Platform-dispatched process check. POSIX uses pgrep, Windows tasklist."""
         try:
+            if platform.startswith("win"):
+                result = subprocess.run(
+                    ["tasklist", "/FI", f"IMAGENAME eq {self.app_name}.exe"],
+                    capture_output=True,
+                    text=True,
+                    timeout=_PGREP_TIMEOUT,
+                    check=False,
+                )
+                # tasklist always returns 0; the process is present iff its
+                # name appears in stdout (otherwise we see "No tasks are running…").
+                return f"{self.app_name}.exe" in result.stdout
             result = subprocess.run(
                 ["pgrep", "-x", self.app_name],
                 capture_output=True,

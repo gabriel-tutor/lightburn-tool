@@ -46,5 +46,10 @@ uv run pyinstaller packaging/lbb.spec --clean --noconfirm
 # Linux/Windows → run "dist/LightBurn Bridge/LightBurn Bridge"
 ```
 
+**Windows builds must happen on a Windows host** — PyInstaller doesn't
+cross-compile. See [`docs/build-windows.md`](docs/build-windows.md) for the
+three paths: build directly on a Windows laptop, use GitHub Actions to
+build remotely (artifact download), or run a Windows VM.
+
 The macOS bundle is currently unsigned. For distribution to client machines, code-sign with `codesign` and notarize via `notarytool` before shipping.
 

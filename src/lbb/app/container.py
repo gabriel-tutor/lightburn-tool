@@ -4,12 +4,10 @@ Tests construct PipelineDeps directly with fakes. Production code (UI, CLI)
 goes through build_pipeline_deps() so the wiring lives in exactly one file.
 """
 
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 
 from lbb.adapters.lightburn_shell import LightBurnShellAdapter
-from lbb.adapters.lightburn_udp import LightBurnUDPAdapter
 from lbb.adapters.pdfium_reader import PdfiumReader
 from lbb.adapters.sqlite_repo import SqliteProfileRepository
 from lbb.app.pipeline import PipelineDeps
@@ -23,17 +21,16 @@ class AppPaths:
 
 
 def _select_lightburn() -> LightBurnPort:
-    """Pick the LightBurn integration that's most reliable on this platform.
+    """Shell-based integration on every platform:
+      macOS:    open -a 'LightBurn' file.lbrn2     + pgrep -x LightBurn
+      Linux:    xdg-open file.lbrn2                 + pgrep -x LightBurn
+      Windows:  cmd /c start '' file.lbrn2          + tasklist /FI ...
 
-    macOS / Linux: shell-based ('open -a' / 'xdg-open') — robust and version-
-    agnostic. UDP is undocumented and not consistently working on LightBurn
-    Pro 2.0.05 / macOS as of 2026-05.
-
-    Windows: keep UDP — SendUDP.exe is the documented Windows path. (Can
-    switch to shell here too if UDP turns out flaky on Windows in practice.)
+    UDP adapter is intentionally retired from the production wiring — it
+    was undocumented and didn't work on LightBurn Pro 2.0.05/macOS. It's
+    still in the repo and tested, available for advanced users who wire
+    their own deps. See git history before 2026-05 for the previous setup.
     """
-    if sys.platform.startswith("win"):
-        return LightBurnUDPAdapter()
     return LightBurnShellAdapter()
 
 

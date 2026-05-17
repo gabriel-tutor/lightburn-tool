@@ -31,7 +31,30 @@ def test_is_running_returns_true_when_pgrep_succeeds():
     with patch("subprocess.run") as mock_run:
         mock_run.return_value.returncode = 0
         adapter = LightBurnShellAdapter()
-        assert adapter.is_running()
+        assert adapter._is_running(platform="darwin")
+
+
+def test_is_running_windows_finds_lightburn_in_tasklist():
+    """Windows uses tasklist /FI to find the process by image name."""
+    with patch("subprocess.run") as mock_run:
+        mock_run.return_value.returncode = 0
+        mock_run.return_value.stdout = (
+            "Image Name                     PID Session Name        Session#    Mem Usage\n"
+            "========================= ======== ================ =========== ============\n"
+            "LightBurn.exe                12345 Console                    1     45,000 K\n"
+        )
+        adapter = LightBurnShellAdapter()
+        assert adapter._is_running(platform="win32")
+
+
+def test_is_running_windows_returns_false_when_tasklist_empty():
+    with patch("subprocess.run") as mock_run:
+        mock_run.return_value.returncode = 0
+        mock_run.return_value.stdout = (
+            "INFO: No tasks are running which match the specified criteria.\n"
+        )
+        adapter = LightBurnShellAdapter()
+        assert not adapter._is_running(platform="win32")
 
 
 def test_is_running_returns_false_when_pgrep_no_match():
