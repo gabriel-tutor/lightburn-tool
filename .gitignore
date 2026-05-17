@@ -1,10 +1,11 @@
-# Python
+# Python + PyInstaller build artifacts
 __pycache__/
 *.py[oc]
 *.egg-info/
 build/
 dist/
 wheels/
+*.spec.bak
 
 # Virtual envs
 .venv/

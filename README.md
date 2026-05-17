@@ -35,3 +35,16 @@ uv run lint-imports
 ## Architecture
 
 Hexagonal (core / ports / adapters / app / ui). Python 3.12, PySide6, lxml, pypdfium2, SQLite. Single language, single process.
+
+## Building a distributable binary
+
+```bash
+uv sync --extra ui --dev
+uv run pyinstaller packaging/lbb.spec --clean --noconfirm
+
+# macOS  → open "dist/LightBurn Bridge.app"
+# Linux/Windows → run "dist/LightBurn Bridge/LightBurn Bridge"
+```
+
+The macOS bundle is currently unsigned. For distribution to client machines, code-sign with `codesign` and notarize via `notarytool` before shipping.
+

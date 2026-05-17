@@ -29,6 +29,7 @@ dev = [
     "import-linter>=2.0",
     "pre-commit>=3.7",
     "fpdf2>=2.7",  # generates deterministic vector PDF fixtures
+    "pyinstaller>=6.0",  # packages the desktop app for distribution
 ]
 
 [project.scripts]
