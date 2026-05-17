@@ -1,7 +1,14 @@
 from pathlib import Path
 
 from PySide6.QtCore import QTimer, Signal
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QFileDialog,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
+)
 
 from lbb.ports.lightburn import LightBurnPort
 from lbb.ui.widgets.drop_zone import DropZone
@@ -36,6 +43,7 @@ class HomeView(QWidget):
         # Main drop zone.
         self.zone = DropZone()
         self.zone.pdf_dropped.connect(self.pdf_chosen.emit)
+        self.zone.browse_requested.connect(self._open_browse_dialog)
         layout.addWidget(self.zone, stretch=1)
 
         # Footer nav.
@@ -57,3 +65,13 @@ class HomeView(QWidget):
 
     def _poll(self) -> None:
         self.status.set_running(self._lb.is_running())
+
+    def _open_browse_dialog(self) -> None:
+        path_str, _ = QFileDialog.getOpenFileName(
+            self,
+            "Choose a PDF",
+            str(Path.home()),
+            "PDF files (*.pdf)",
+        )
+        if path_str:
+            self.pdf_chosen.emit(Path(path_str))

@@ -2,6 +2,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QMimeData, QPoint, Qt, QUrl
 from PySide6.QtGui import QDragEnterEvent, QDropEvent
+from PySide6.QtTest import QTest
 
 from lbb.ui.widgets.drop_zone import DropZone
 
@@ -22,6 +23,20 @@ def test_emits_dropped_signal_for_pdf(qtbot, tmp_path):
     zone.dropEvent(QDropEvent(pos, Qt.CopyAction, mime, Qt.LeftButton, Qt.NoModifier))
 
     assert received == [pdf]
+
+
+def test_left_click_emits_browse_requested(qtbot):
+    zone = DropZone()
+    qtbot.addWidget(zone)
+    zone.resize(400, 300)
+    zone.show()
+
+    received: list[bool] = []
+    zone.browse_requested.connect(lambda: received.append(True))
+
+    QTest.mouseClick(zone, Qt.LeftButton, pos=QPoint(50, 50))
+
+    assert received == [True]
 
 
 def test_ignores_non_pdf_drops(qtbot, tmp_path):

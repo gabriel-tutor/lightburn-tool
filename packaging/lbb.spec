@@ -75,5 +75,14 @@ if sys.platform == "darwin":
             "CFBundleShortVersionString": "0.1.0",
             "CFBundleVersion": "0.1.0",
             "LSMinimumSystemVersion": "12.0",
+            # Declare we accept PDFs — required for Finder drag-drop into the .app.
+            "CFBundleDocumentTypes": [
+                {
+                    "CFBundleTypeName": "PDF Document",
+                    "CFBundleTypeRole": "Editor",
+                    "LSHandlerRank": "Alternate",
+                    "LSItemContentTypes": ["com.adobe.pdf"],
+                },
+            ],
         },
     )
