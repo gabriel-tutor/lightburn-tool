@@ -58,10 +58,75 @@ def make_wallet_demo() -> Path:
     return out
 
 
+def make_wallet_showcase() -> Path:
+    """A richer demo design for client showcases.
+
+    95×110mm Wallet-Small canvas with:
+      • Black cut outline (rounded-rectangle approximated with chamfered corners)
+      • Blue engrave: decorative cross + corner ticks + diagonal accent lines
+    """
+    pdf = _new_pdf(95.0, 110.0)
+
+    # ── Cut outline (layer 00 / black) ─────────────────────────────────────
+    pdf.set_draw_color(0, 0, 0)
+    pdf.set_line_width(0.5)
+    # Chamfered rectangle: 8 segments instead of 4 for visual interest
+    c = 4.0  # chamfer size
+    x0, y0, x1, y1 = 6.0, 6.0, 89.0, 104.0
+    pts = [
+        (x0 + c, y0),
+        (x1 - c, y0),
+        (x1, y0 + c),
+        (x1, y1 - c),
+        (x1 - c, y1),
+        (x0 + c, y1),
+        (x0, y1 - c),
+        (x0, y0 + c),
+        (x0 + c, y0),  # close
+    ]
+    for (sx, sy), (ex, ey) in zip(pts, pts[1:], strict=False):
+        pdf.line(sx, sy, ex, ey)
+
+    # ── Engrave: a centred plus/cross ──────────────────────────────────────
+    pdf.set_draw_color(0, 0, 255)
+    pdf.set_line_width(0.4)
+    cx, cy = 47.5, 55.0  # canvas centre
+    arm = 14.0  # arm length each side
+    # Horizontal bar
+    pdf.line(cx - arm, cy, cx + arm, cy)
+    pdf.line(cx - arm, cy - 3, cx + arm, cy - 3)
+    pdf.line(cx - arm, cy + 3, cx + arm, cy + 3)
+    # Vertical bar
+    pdf.line(cx, cy - arm, cx, cy + arm)
+    pdf.line(cx - 3, cy - arm, cx - 3, cy + arm)
+    pdf.line(cx + 3, cy - arm, cx + 3, cy + arm)
+
+    # ── Engrave: corner ticks (4 small L-shapes near each outline corner) ──
+    tick = 5.0
+    inset = 12.0
+    for corner_x, corner_y, dx, dy in (
+        (x0 + inset, y0 + inset, +1, +1),  # top-left
+        (x1 - inset, y0 + inset, -1, +1),  # top-right
+        (x1 - inset, y1 - inset, -1, -1),  # bottom-right
+        (x0 + inset, y1 - inset, +1, -1),  # bottom-left
+    ):
+        pdf.line(corner_x, corner_y, corner_x + tick * dx, corner_y)
+        pdf.line(corner_x, corner_y, corner_x, corner_y + tick * dy)
+
+    # ── Engrave: diagonal accent lines bottom ──────────────────────────────
+    for i in range(5):
+        offset = i * 4
+        pdf.line(20 + offset, 88, 40 + offset, 95)
+
+    out = OUT_DIR / "LB-WALLET-LEATHER-S__showcase.pdf"
+    pdf.output(str(out))
+    return out
+
+
 def main() -> None:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     written: list[Path] = []
-    for fn in (make_sample_vector, make_wallet_demo):
+    for fn in (make_sample_vector, make_wallet_demo, make_wallet_showcase):
         path = fn()
         written.append(path)
         print(f"  ✓ {path.relative_to(REPO_ROOT)} ({path.stat().st_size} bytes)")
