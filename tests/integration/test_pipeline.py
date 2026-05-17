@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+from lxml import etree
 
 from lbb.adapters.lightburn_fake import LightBurnFake
 from lbb.adapters.pdfium_reader import PdfiumReader
@@ -11,6 +12,7 @@ from lbb.core.models import Material, Sku, SkuProfile, Template
 
 REPO_ROOT = Path(__file__).parents[2]
 PDF_DEMO = REPO_ROOT / "tests" / "fixtures" / "pdfs" / "LB-WALLET-LEATHER-S__demo.pdf"
+PDF_SHOWCASE = REPO_ROOT / "tests" / "fixtures" / "pdfs" / "LB-WALLET-LEATHER-S__showcase.pdf"
 TEMPLATE = REPO_ROOT / "templates" / "wallet-small.lbrn2"
 
 
@@ -78,6 +80,18 @@ def test_lightburn_not_running_returns_error(tmp_path):
     assert not result.ok
     # File was built but not dispatched
     assert deps.lightburn.loaded == []
+
+
+def test_strokes_route_to_correct_cut_layer(deps):
+    """Black strokes → CutIndex 0 (cut), blue strokes → CutIndex 1 (engrave).
+    The showcase PDF has both #000000 and #0000FF paths."""
+    result = run_pipeline(Job(source_pdf=PDF_SHOWCASE), deps)
+    assert result.ok, result.error
+    tree = etree.parse(str(result.output_path))
+    shapes = tree.findall(".//Shape[@Type='Path']")
+    cut_indexes = [int(s.get("CutIndex")) for s in shapes]
+    assert 0 in cut_indexes, f"no shape on layer 0 (cut); indexes: {set(cut_indexes)}"
+    assert 1 in cut_indexes, f"no shape on layer 1 (engrave); indexes: {set(cut_indexes)}"
 
 
 def test_filename_without_sku_returns_error(tmp_path):

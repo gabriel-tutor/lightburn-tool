@@ -10,6 +10,7 @@ from pathlib import Path
 from lbb.app.job import Job, JobResult
 from lbb.core.errors import LbbError, PreflightFailed, SkuNotFound
 from lbb.core.extractor import extract_sku
+from lbb.core.palette import layer_index_for_color
 from lbb.core.preflight import run_preflight
 from lbb.core.template_builder import build_lbrn2
 from lbb.ports.lightburn import LightBurnPort
@@ -44,9 +45,12 @@ def run_pipeline(job: Job, deps: PipelineDeps) -> JobResult:
             raise PreflightFailed(reasons=pf.reasons)
 
         paths = deps.pdf.extract_paths(job.source_pdf)
-        # MVP: every path goes onto cut layer 0 (we'll honor stroke-color → layer
-        # mapping in Phase 5 when we wire the palette lookup into here).
-        shapes: list[tuple[str, int]] = [(d, 0) for d, _color in paths]
+        # Route each path to its layer by stroke colour. Preflight already
+        # rejected any off-palette colours, so layer_index_for_color should
+        # only ever return None for an edge case — fall back to layer 0.
+        shapes: list[tuple[str, int]] = [
+            (d, layer_index_for_color(color) or 0) for d, color in paths
+        ]
 
         out_bytes = build_lbrn2(
             template_path=Path(profile.template.lbrn2_path),
