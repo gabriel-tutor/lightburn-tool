@@ -8,6 +8,8 @@ The controller logic lives here: pdf_chosen → resolve profile, run preflight,
 render thumbnail, populate preview, switch. Errors surface via QMessageBox.
 """
 
+import sys
+import traceback
 from pathlib import Path
 
 from PySide6.QtWidgets import QMainWindow, QMessageBox, QStackedWidget
@@ -87,6 +89,10 @@ class MainWindow(QMainWindow):
             )
             png = self.deps.pdf.render_thumbnail_png(path, _THUMB_PX)
         except Exception as e:  # noqa: BLE001
+            # Print the full traceback to stderr so users running from terminal
+            # (or future log-file capture) get diagnostics, then surface the
+            # short version in the dialog.
+            traceback.print_exception(e, file=sys.stderr)
             QMessageBox.critical(
                 self,
                 "Couldn't open PDF",

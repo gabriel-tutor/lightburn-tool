@@ -1,9 +1,10 @@
 import ctypes
-import io
 from pathlib import Path
 
 import pypdfium2 as pdfium
 import pypdfium2.raw as pdfium_raw
+from PySide6.QtCore import QBuffer, QIODevice
+from PySide6.QtGui import QImage
 
 from lbb.core.preflight import PdfInfo
 from lbb.ports.pdf import PdfReader
@@ -40,6 +41,13 @@ def _stroke_color_rgb(obj) -> tuple[int, int, int] | None:
 _PDF_SEG_LINETO = 0
 _PDF_SEG_BEZIERTO = 1
 _PDF_SEG_MOVETO = 2
+
+# pdfium PdfBitmap.format codes (after rev_byteorder=True the channel order
+# is the natural RGB/RGBA we want).
+_PDF_BITMAP_GRAY = 1
+_PDF_BITMAP_RGB = 2
+_PDF_BITMAP_RGBX = 3
+_PDF_BITMAP_RGBA = 4
 
 # Coords from pdfium can drift by a few thousandths of a mm vs. the source design;
 # round to this precision when emitting SVG so the output is stable and clean.
@@ -107,16 +115,52 @@ class PdfiumReader(PdfReader):
             pdf.close()
 
     def render_thumbnail_png(self, path: Path, max_px: int) -> bytes:
+        """Render the first page to PNG bytes via Qt (no Pillow dependency).
+
+        We use QImage instead of PdfBitmap.to_pil() because Pillow's vendored
+        zlib conflicts with PyInstaller's bundled zlib in production .apps,
+        manifesting as 'zlib.error: Error -3 incorrect header check' when
+        users pick a PDF. Qt already provides PNG encoding and ships with us.
+        """
         pdf = pdfium.PdfDocument(str(path))
         try:
             page = pdf[0]
             scale = max_px / max(page.get_width(), page.get_height())
-            pil = page.render(scale=scale).to_pil()
-            buf = io.BytesIO()
-            pil.save(buf, format="PNG")
-            return buf.getvalue()
+            bitmap = page.render(scale=scale, rev_byteorder=True)
+            qfmt = _qimage_format_for(bitmap.format)
+            qimg = QImage(
+                bytes(bitmap.buffer),
+                bitmap.width,
+                bitmap.height,
+                bitmap.stride,
+                qfmt,
+            )
+            if qimg.isNull():
+                raise RuntimeError(
+                    f"Could not construct QImage from pdfium bitmap "
+                    f"(format={bitmap.format}, {bitmap.width}x{bitmap.height}, "
+                    f"stride={bitmap.stride})"
+                )
+            buf = QBuffer()
+            buf.open(QIODevice.WriteOnly)
+            qimg.save(buf, "PNG")
+            return bytes(buf.data())
         finally:
             pdf.close()
+
+
+def _qimage_format_for(pdfium_format: int) -> QImage.Format:
+    """Map a pypdfium2 PdfBitmap.format code to the QImage format with
+    matching channel count/order. rev_byteorder=True was passed at render."""
+    if pdfium_format == _PDF_BITMAP_GRAY:
+        return QImage.Format_Grayscale8
+    if pdfium_format == _PDF_BITMAP_RGB:
+        return QImage.Format_RGB888
+    if pdfium_format == _PDF_BITMAP_RGBX:
+        return QImage.Format_RGBX8888
+    if pdfium_format == _PDF_BITMAP_RGBA:
+        return QImage.Format_RGBA8888
+    return QImage.Format_RGB888  # safest default
 
 
 def _path_to_svg_d(path_obj, page_h_mm: float) -> str:

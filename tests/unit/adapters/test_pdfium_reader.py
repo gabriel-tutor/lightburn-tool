@@ -50,3 +50,14 @@ def test_reads_basic_info():
     assert info.is_vector_only is True
     assert "#000000" in {c.lower() for c in info.stroke_colors}
     assert info.bbox_mm[0] > 0 and info.bbox_mm[1] > 0
+
+
+@pytest.mark.skipif(not FIXTURE.exists(), reason="fixture PDF missing")
+def test_render_thumbnail_png_produces_valid_png_via_qimage(qtbot):
+    """Round-trips a PNG through QImage encoding. Regression guard for the
+    bundle-side zlib conflict that arose when Pillow was used."""
+    r = PdfiumReader()
+    png = r.render_thumbnail_png(FIXTURE, 256)
+    # PNG magic header
+    assert png.startswith(b"\x89PNG\r\n\x1a\n"), "missing PNG magic — not a real PNG"
+    assert len(png) > 100, "PNG suspiciously small"
