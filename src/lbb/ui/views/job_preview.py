@@ -1,6 +1,7 @@
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
+    QFrame,
     QHBoxLayout,
     QLabel,
     QPushButton,
@@ -11,7 +12,7 @@ from PySide6.QtWidgets import (
 from lbb.core.models import SkuProfile
 from lbb.core.preflight import PreflightResult
 
-_THUMB_PX = 360
+_THUMB_PX = 380
 
 
 class JobPreviewView(QWidget):
@@ -23,56 +24,76 @@ class JobPreviewView(QWidget):
     def __init__(self) -> None:
         super().__init__()
         outer = QVBoxLayout(self)
+        outer.setContentsMargins(28, 24, 28, 22)
+        outer.setSpacing(20)
 
-        # Body — thumbnail (left) + metadata (right).
+        # ── Body: thumbnail card (left) + metadata column (right) ─────────
         body = QHBoxLayout()
+        body.setSpacing(28)
 
+        thumb_card = QFrame()
+        thumb_card.setObjectName("previewThumbCard")
+        thumb_layout = QVBoxLayout(thumb_card)
+        thumb_layout.setContentsMargins(12, 12, 12, 12)
         self.thumb = QLabel("Loading…")
         self.thumb.setFixedSize(_THUMB_PX, _THUMB_PX)
         self.thumb.setAlignment(Qt.AlignCenter)
-        self.thumb.setStyleSheet(
-            "background: #141821; border: 1px solid #252A38; border-radius: 8px;"
-        )
-        body.addWidget(self.thumb)
+        self.thumb.setStyleSheet("background: transparent; border: none; color: #8A92A6;")
+        thumb_layout.addWidget(self.thumb)
+        body.addWidget(thumb_card)
 
-        right = QVBoxLayout()
-        right.addWidget(QLabel("SKU detected"))
-        self.sku_label = QLabel()
-        self.sku_label.setStyleSheet("font-size: 20px; font-weight: 600; color: #7DD3FC;")
-        right.addWidget(self.sku_label)
-
-        right.addSpacing(12)
-        right.addWidget(QLabel("Product template"))
-        self.template_label = QLabel()
-        right.addWidget(self.template_label)
-
-        right.addSpacing(12)
-        right.addWidget(QLabel("Material profile"))
-        self.material_label = QLabel()
-        right.addWidget(self.material_label)
-        self.material_detail = QLabel()
-        self.material_detail.setStyleSheet("color: #94A3B8;")
-        right.addWidget(self.material_detail)
-
-        right.addStretch()
-        self.preflight_label = QLabel()
-        self.preflight_label.setWordWrap(True)
-        right.addWidget(self.preflight_label)
-
-        body.addLayout(right, stretch=1)
+        body.addLayout(self._build_metadata_column(), stretch=1)
         outer.addLayout(body, stretch=1)
 
-        # Footer — Cancel + Send.
+        # ── Footer: cancel + send ─────────────────────────────────────────
         footer = QHBoxLayout()
-        self.cancel = QPushButton("✕  Cancel")
+        self.cancel = QPushButton("Cancel")
+        self.cancel.setObjectName("ghostButton")
         self.cancel.clicked.connect(self.cancel_requested.emit)
-        self.send = QPushButton("⏎  Send →")
+        self.send = QPushButton("Send to LightBurn  →")
         self.send.setObjectName("sendButton")
         self.send.clicked.connect(self.send_requested.emit)
         footer.addStretch()
         footer.addWidget(self.cancel)
         footer.addWidget(self.send)
         outer.addLayout(footer)
+
+    def _build_metadata_column(self) -> QVBoxLayout:
+        right = QVBoxLayout()
+        right.setSpacing(4)
+
+        right.addWidget(_section_label("SKU detected"))
+        self.sku_label = QLabel()
+        self.sku_label.setObjectName("monoCode")
+        right.addWidget(self.sku_label)
+
+        right.addSpacing(20)
+        right.addWidget(_section_label("Product template"))
+        self.template_label = QLabel()
+        self.template_label.setStyleSheet("font-size: 14px;")
+        right.addWidget(self.template_label)
+        self.template_size_label = QLabel()
+        self.template_size_label.setObjectName("dim")
+        self.template_size_label.setStyleSheet("font-size: 12px;")
+        right.addWidget(self.template_size_label)
+
+        right.addSpacing(20)
+        right.addWidget(_section_label("Material profile"))
+        self.material_label = QLabel()
+        self.material_label.setStyleSheet("font-size: 14px;")
+        right.addWidget(self.material_label)
+        self.material_detail = QLabel()
+        self.material_detail.setObjectName("dim")
+        self.material_detail.setStyleSheet("font-size: 12px;")
+        right.addWidget(self.material_detail)
+
+        right.addStretch()
+
+        self.preflight_label = QLabel()
+        self.preflight_label.setWordWrap(True)
+        self.preflight_label.setStyleSheet("font-size: 13px;")
+        right.addWidget(self.preflight_label)
+        return right
 
     def populate(
         self,
@@ -88,28 +109,34 @@ class JobPreviewView(QWidget):
                 pix.scaled(self.thumb.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
             )
         else:
-            self.thumb.setText("(no preview)")
+            self.thumb.setText("no preview")
 
         self.sku_label.setText(profile.sku.value)
-        self.template_label.setText(
-            f"{profile.template.name}  "
-            f"({profile.template.canvas_w_mm:.0f} × {profile.template.canvas_h_mm:.0f} mm)"
+        self.template_label.setText(profile.template.name)
+        self.template_size_label.setText(
+            f"{profile.template.canvas_w_mm:.0f} × {profile.template.canvas_h_mm:.0f} mm canvas"
         )
         self.material_label.setText(profile.material.name)
         self.material_detail.setText(
-            f"Library: {profile.material.clb_library}    Entry: {profile.material.clb_entry}"
+            f"{profile.material.clb_library}  →  {profile.material.clb_entry}"
         )
 
         if preflight.ok:
-            self.preflight_label.setText("✓ All preflight checks passed")
+            self.preflight_label.setText("✓  All preflight checks passed")
             self.preflight_label.setObjectName("statusOk")
             self.send.setEnabled(True)
         else:
-            bullets = "\n".join(f"  • {r}" for r in preflight.reasons)
-            self.preflight_label.setText(f"✕ Preflight failed:\n{bullets}")
+            bullets = "\n".join(f"  •  {r}" for r in preflight.reasons)
+            self.preflight_label.setText(f"✕  Preflight failed:\n{bullets}")
             self.preflight_label.setObjectName("statusError")
             self.send.setEnabled(False)
 
-        # Re-apply QSS after objectName change.
         self.preflight_label.style().unpolish(self.preflight_label)
         self.preflight_label.style().polish(self.preflight_label)
+
+
+def _section_label(text: str) -> QLabel:
+    """A small, all-caps label that introduces a metadata block."""
+    label = QLabel(text)
+    label.setObjectName("sectionLabel")
+    return label

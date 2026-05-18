@@ -29,28 +29,41 @@ class HomeView(QWidget):
         self._lb = lightburn
 
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(28, 22, 28, 22)
+        layout.setSpacing(20)
 
-        # Header row: title left, status pill right.
+        # ── Header: two-tone wordmark (left) + status pill (right) ────────
         header = QHBoxLayout()
-        title = QLabel("◐  LightBurn Bridge")
-        title.setStyleSheet("font-size: 18px; font-weight: 600;")
-        self.status = StatusPill()
-        header.addWidget(title)
+        header.setSpacing(2)
+
+        title_row = QHBoxLayout()
+        title_row.setSpacing(6)
+        brand = QLabel("LightBurn")
+        brand.setObjectName("wordmark")
+        sub = QLabel("Bridge")
+        sub.setObjectName("wordmarkAccent")
+        title_row.addWidget(brand)
+        title_row.addWidget(sub)
+
+        header.addLayout(title_row)
         header.addStretch()
+        self.status = StatusPill()
         header.addWidget(self.status)
         layout.addLayout(header)
 
-        # Main drop zone.
+        # ── Drop zone fills the rest of the screen ────────────────────────
         self.zone = DropZone()
         self.zone.pdf_dropped.connect(self.pdf_chosen.emit)
         self.zone.browse_requested.connect(self._open_browse_dialog)
         layout.addWidget(self.zone, stretch=1)
 
-        # Footer nav.
+        # ── Footer nav — ghost-style, right-aligned ───────────────────────
         footer = QHBoxLayout()
-        admin_btn = QPushButton("⚙  Admin")
+        admin_btn = QPushButton("Admin")
+        admin_btn.setObjectName("ghostButton")
         admin_btn.clicked.connect(self.open_admin.emit)
-        audit_btn = QPushButton("📋  Audit")
+        audit_btn = QPushButton("Audit")
+        audit_btn.setObjectName("ghostButton")
         audit_btn.clicked.connect(self.open_audit.emit)
         footer.addStretch()
         footer.addWidget(admin_btn)
