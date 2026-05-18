@@ -4,13 +4,15 @@ A cross-platform desktop tool that loads PDFs into LightBurn with the correct ma
 
 ## Status
 
-Pre-MVP. Phase 0 scaffolding complete. See `docs/plans/` for full design and implementation plan.
+MVP complete — 101 tests passing, end-to-end verified against LightBurn Pro 2.0.05 on macOS, Windows path documented. See [HANDOFF.md](HANDOFF.md) for the full status, gaps, and Windows-setup walkthrough.
 
 ## Documentation
 
+- **Handoff (start here):** [`HANDOFF.md`](HANDOFF.md) — Windows setup, what's built, what's not, operating guide, troubleshooting
 - **Design:** [`docs/plans/2026-05-16-lightburn-bridge-design.md`](docs/plans/2026-05-16-lightburn-bridge-design.md)
 - **MVP plan:** [`docs/plans/2026-05-16-lightburn-bridge-mvp-plan.md`](docs/plans/2026-05-16-lightburn-bridge-mvp-plan.md)
 - **Designer PDF spec:** [`docs/designer-pdf-spec.md`](docs/designer-pdf-spec.md)
+- **Windows build details:** [`docs/build-windows.md`](docs/build-windows.md)
 
 ## Development
 
