@@ -1,7 +1,6 @@
 from pathlib import Path
 
 import pytest
-from lxml import etree
 
 from lbb.adapters.lightburn_fake import LightBurnFake
 from lbb.adapters.pdfium_reader import PdfiumReader
@@ -12,7 +11,6 @@ from lbb.core.models import Material, Sku, SkuProfile, Template
 
 REPO_ROOT = Path(__file__).parents[2]
 PDF_DEMO = REPO_ROOT / "tests" / "fixtures" / "pdfs" / "LB-WALLET-LEATHER-S__demo.pdf"
-PDF_SHOWCASE = REPO_ROOT / "tests" / "fixtures" / "pdfs" / "LB-WALLET-LEATHER-S__showcase.pdf"
 TEMPLATE = REPO_ROOT / "templates" / "wallet-small.lbrn2"
 
 
@@ -46,62 +44,50 @@ def deps(tmp_path):
     )
 
 
-def test_happy_path_loads_to_lightburn(deps):
-    result = run_pipeline(Job(source_pdf=PDF_DEMO), deps)
+def test_happy_path_opens_source_pdf_directly(deps):
+    """After the direct-open pivot: pipeline hands the customer's PDF to
+    LightBurn unchanged. LightBurn's native importer preserves fidelity."""
+    profile = deps.repo.get(Sku("LB-WALLET-LEATHER-S"))
+    result = run_pipeline(Job(source_pdf=PDF_DEMO, profile=profile), deps)
     assert result.ok, result.error
+    # No .lbrn2 generated — source PDF is what was opened.
+    assert result.output_path == PDF_DEMO
     assert result.sku.value == "LB-WALLET-LEATHER-S"
-    assert result.output_path.suffix == ".lbrn2"
-    assert result.output_path.exists()
-    assert deps.lightburn.loaded == [result.output_path]
-
-
-def test_unknown_sku_returns_error(tmp_path):
-    # Empty repo (no profile seeded)
-    repo = SqliteProfileRepository(tmp_path / "p.sqlite")
-    deps = PipelineDeps(
-        repo=repo, pdf=PdfiumReader(), lightburn=LightBurnFake(), temp_dir=tmp_path / "out"
-    )
-    result = run_pipeline(Job(source_pdf=PDF_DEMO), deps)
-    assert not result.ok
-    assert "LB-WALLET-LEATHER-S" in result.error
-    assert deps.lightburn.loaded == []  # never reached dispatch
+    assert deps.lightburn.loaded == [PDF_DEMO]
 
 
 def test_lightburn_not_running_returns_error(tmp_path):
+    """If LightBurn isn't running, the load_file call raises and the
+    pipeline returns a non-ok result. Source PDF wasn't loaded."""
     repo = SqliteProfileRepository(tmp_path / "p.sqlite")
-    _seed_wallet_profile(repo)
+    profile = _seed_wallet_profile(repo)
     deps = PipelineDeps(
         repo=repo,
         pdf=PdfiumReader(),
         lightburn=LightBurnFake(running=False),  # simulate down
         temp_dir=tmp_path / "out",
     )
-    result = run_pipeline(Job(source_pdf=PDF_DEMO), deps)
+    result = run_pipeline(Job(source_pdf=PDF_DEMO, profile=profile), deps)
     assert not result.ok
-    # File was built but not dispatched
     assert deps.lightburn.loaded == []
 
 
-def test_strokes_route_to_correct_cut_layer(deps):
-    """Black strokes → CutIndex 0 (cut), blue strokes → CutIndex 1 (engrave).
-    The showcase PDF has both #000000 and #0000FF paths."""
-    result = run_pipeline(Job(source_pdf=PDF_SHOWCASE), deps)
-    assert result.ok, result.error
-    tree = etree.parse(str(result.output_path))
-    shapes = tree.findall(".//Shape[@Type='Path']")
-    cut_indexes = [int(s.get("CutIndex")) for s in shapes]
-    assert 0 in cut_indexes, f"no shape on layer 0 (cut); indexes: {set(cut_indexes)}"
-    assert 1 in cut_indexes, f"no shape on layer 1 (engrave); indexes: {set(cut_indexes)}"
-
-
-def test_filename_without_sku_returns_error(tmp_path):
+def test_pipeline_uses_explicit_profile_for_no_sku_filename(tmp_path):
+    """When a profile is passed in the Job (the picker-fallback flow) the
+    pipeline opens the customer's PDF directly. Filename can be anything."""
     repo = SqliteProfileRepository(tmp_path / "p.sqlite")
+    profile = _seed_wallet_profile(repo)
     deps = PipelineDeps(
-        repo=repo, pdf=PdfiumReader(), lightburn=LightBurnFake(), temp_dir=tmp_path / "out"
+        repo=repo,
+        pdf=PdfiumReader(),
+        lightburn=LightBurnFake(),
+        temp_dir=tmp_path / "out",
     )
-    # Copy the demo PDF to a path with no SKU delimiter
-    bad = tmp_path / "nosku.pdf"
-    bad.write_bytes(PDF_DEMO.read_bytes())
-    result = run_pipeline(Job(source_pdf=bad), deps)
-    assert not result.ok
-    assert "delimiter" in result.error.lower() or "sku" in result.error.lower()
+    no_sku_pdf = tmp_path / "client-order-12345.pdf"
+    no_sku_pdf.write_bytes(PDF_DEMO.read_bytes())
+
+    result = run_pipeline(Job(source_pdf=no_sku_pdf, profile=profile), deps)
+    assert result.ok, result.error
+    assert result.profile is profile
+    assert result.output_path == no_sku_pdf
+    assert deps.lightburn.loaded == [no_sku_pdf]

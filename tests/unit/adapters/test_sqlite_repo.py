@@ -55,6 +55,29 @@ def test_upsert_replaces_existing_mapping(repo):
     assert got.template.name == "T2"
 
 
+def test_list_profiles_empty_returns_empty_list(repo):
+    assert repo.list_profiles() == []
+
+
+def test_list_profiles_returns_all_joined_sorted_by_sku(repo):
+    t = repo.upsert_template(
+        Template(id=0, name="T", lbrn2_path="/x", canvas_w_mm=50, canvas_h_mm=60)
+    )
+    m = repo.upsert_material(Material(id=0, name="M", clb_library="x", clb_entry="M"))
+    # Insert out of order — list_profiles must return sorted by SKU
+    repo.upsert(SkuProfile(Sku("LB-B"), t, m, {}))
+    repo.upsert(SkuProfile(Sku("LB-A"), t, m, {"speed": 200}))
+
+    profiles = repo.list_profiles()
+    assert [p.sku.value for p in profiles] == ["LB-A", "LB-B"]
+    # Each profile must be fully joined (template + material populated)
+    assert profiles[0].template.name == "T"
+    assert profiles[0].material.name == "M"
+    # Overrides JSON must round-trip
+    assert profiles[0].overrides == {"speed": 200}
+    assert profiles[1].overrides == {}
+
+
 def test_overrides_json_roundtrip(repo):
     t = repo.upsert_template(
         Template(id=0, name="T", lbrn2_path="/x", canvas_w_mm=50, canvas_h_mm=60)

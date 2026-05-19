@@ -53,12 +53,49 @@ _PDF_BITMAP_RGBA = 4
 # round to this precision when emitting SVG so the output is stable and clean.
 _MM_PRECISION = 2
 
+# Cubic Beziers are flattened to N straight-line segments. 8 samples per curve
+# is invisible at typography scales (the laser's stepover is coarser than this
+# anyway) and keeps the .lbrn2 file lean.
+_BEZIER_SAMPLES = 8
+
 
 def _fmt_mm(n: float) -> str:
     """Format a millimetre value: integers as int, decimals trimmed of trailing zeros."""
     if n == int(n):
         return str(int(n))
     return f"{n:.{_MM_PRECISION}f}".rstrip("0").rstrip(".")
+
+
+def _flatten_cubic_bezier(
+    p0: tuple[float, float],
+    p1: tuple[float, float],
+    p2: tuple[float, float],
+    p3: tuple[float, float],
+    n_samples: int = _BEZIER_SAMPLES,
+) -> list[tuple[float, float]]:
+    """Sample a cubic Bezier at N equally-spaced t-values and return the points.
+
+    Samples are taken at t = 1/N, 2/N, …, 1.0 — the starting point P0 is
+    excluded because the caller is already at P0 (it was the prior segment's
+    endpoint). The final sample is P3 exactly, so polylines join cleanly.
+
+    B(t) = (1-t)³·P0 + 3(1-t)²·t·P1 + 3(1-t)·t²·P2 + t³·P3
+    """
+    out: list[tuple[float, float]] = []
+    for i in range(1, n_samples + 1):
+        t = i / n_samples
+        if i == n_samples:
+            out.append(p3)
+            continue
+        u = 1.0 - t
+        b0 = u * u * u
+        b1 = 3 * u * u * t
+        b2 = 3 * u * t * t
+        b3 = t * t * t
+        x = b0 * p0[0] + b1 * p1[0] + b2 * p2[0] + b3 * p3[0]
+        y = b0 * p0[1] + b1 * p1[1] + b2 * p2[1] + b3 * p3[1]
+        out.append((x, y))
+    return out
 
 
 # ── pypdfium2 wrapper (covered by gated integration test) ───────────────────
@@ -163,31 +200,94 @@ def _qimage_format_for(pdfium_format: int) -> QImage.Format:
     return QImage.Format_RGB888  # safest default
 
 
-def _path_to_svg_d(path_obj, page_h_mm: float) -> str:
-    """Walk a pdfium path object's segments and emit a canonical SVG-path string."""
+def _read_segments(path_obj, page_h_mm: float) -> list[dict | None]:
+    """Pre-extract every pdfium path segment into a list of dicts so the caller
+    can do 3-segment lookahead for cubic Beziers without re-reading via FFI."""
     n_seg = pdfium_raw.FPDFPath_CountSegments(path_obj.raw)
-    tokens: list[str] = []
-    subpath_start: tuple[float, float] | None = None
+    segments: list[dict | None] = []
     for j in range(n_seg):
         seg = pdfium_raw.FPDFPath_GetPathSegment(path_obj.raw, j)
         x_pt, y_pt = ctypes.c_float(), ctypes.c_float()
         if not pdfium_raw.FPDFPathSegment_GetPoint(seg, ctypes.byref(x_pt), ctypes.byref(y_pt)):
+            segments.append(None)
             continue
-        x_mm = round(pt_to_mm(x_pt.value), _MM_PRECISION)
-        y_mm = round(page_h_mm - pt_to_mm(y_pt.value), _MM_PRECISION)
-        seg_type = pdfium_raw.FPDFPathSegment_GetType(seg)
-        is_close = bool(pdfium_raw.FPDFPathSegment_GetClose(seg))
+        segments.append(
+            {
+                "type": pdfium_raw.FPDFPathSegment_GetType(seg),
+                "x": round(pt_to_mm(x_pt.value), _MM_PRECISION),
+                "y": round(page_h_mm - pt_to_mm(y_pt.value), _MM_PRECISION),
+                "close": bool(pdfium_raw.FPDFPathSegment_GetClose(seg)),
+            }
+        )
+    return segments
 
-        if seg_type == _PDF_SEG_MOVETO:
-            tokens.append(f"M {_fmt_mm(x_mm)} {_fmt_mm(y_mm)}")
-            subpath_start = (x_mm, y_mm)
-        elif seg_type == _PDF_SEG_LINETO:
+
+def _path_to_svg_d(path_obj, page_h_mm: float) -> str:
+    """Walk a pdfium path object's segments and emit a canonical SVG-path string.
+
+    Cubic Beziers (3 consecutive BEZIERTO segments for P1, P2, P3) are flattened
+    into polyline samples via `_flatten_cubic_bezier`, so curves no longer
+    silently disappear (HANDOFF §5.4 phase-1.5 enhancement).
+    """
+    segments = _read_segments(path_obj, page_h_mm)
+    n_seg = len(segments)
+    tokens: list[str] = []
+    subpath_start: tuple[float, float] | None = None
+    current: tuple[float, float] | None = None
+    j = 0
+    while j < n_seg:
+        s = segments[j]
+        if s is None:
+            j += 1
+            continue
+        if s["type"] == _PDF_SEG_MOVETO:
+            tokens.append(f"M {_fmt_mm(s['x'])} {_fmt_mm(s['y'])}")
+            subpath_start = (s["x"], s["y"])
+            current = (s["x"], s["y"])
+            j += 1
+        elif s["type"] == _PDF_SEG_LINETO:
             # Deduplicate the redundant closing line that re-targets the subpath start.
-            if is_close and subpath_start == (x_mm, y_mm):
+            if s["close"] and subpath_start == (s["x"], s["y"]):
                 tokens.append("Z")
             else:
-                tokens.append(f"L {_fmt_mm(x_mm)} {_fmt_mm(y_mm)}")
-                if is_close:
+                tokens.append(f"L {_fmt_mm(s['x'])} {_fmt_mm(s['y'])}")
+                if s["close"]:
                     tokens.append("Z")
-        # BEZIERTO and any unknown type: skip (MVP straight-lines only).
+            current = (s["x"], s["y"])
+            j += 1
+        elif s["type"] == _PDF_SEG_BEZIERTO:
+            consumed, new_current = _emit_bezier_chunk(segments, j, current, tokens)
+            if consumed == 0:
+                j += 1
+            else:
+                current = new_current
+                j += consumed
+        else:
+            j += 1
     return " ".join(tokens)
+
+
+def _emit_bezier_chunk(
+    segments: list[dict | None],
+    j: int,
+    current: tuple[float, float] | None,
+    tokens: list[str],
+) -> tuple[int, tuple[float, float] | None]:
+    """Consume 3 consecutive BEZIERTO segments (P1, P2, P3) and append the
+    flattened polyline to `tokens`. Returns (segments_consumed, new_current).
+    Returns (0, current) if the Bezier chunk is malformed or truncated."""
+    s1 = segments[j]
+    s2 = segments[j + 1] if j + 1 < len(segments) else None
+    s3 = segments[j + 2] if j + 2 < len(segments) else None
+    if current is None or s1 is None or s2 is None or s3 is None:
+        return 0, current
+    p1 = (s1["x"], s1["y"])
+    p2 = (s2["x"], s2["y"])
+    p3 = (s3["x"], s3["y"])
+    for sx, sy in _flatten_cubic_bezier(current, p1, p2, p3):
+        tokens.append(
+            f"L {_fmt_mm(round(sx, _MM_PRECISION))} {_fmt_mm(round(sy, _MM_PRECISION))}"
+        )
+    if s3["close"]:
+        tokens.append("Z")
+    return 3, p3

@@ -70,6 +70,48 @@ def test_multiple_shapes_become_separate_path_elements():
     assert shapes[1].get("CutIndex") == "1"
 
 
+def test_multi_subpath_string_emits_separate_shapes_no_spurious_connectors():
+    """A single SVG `d` string with multiple `M` commands must produce a
+    SEPARATE <Shape> per subpath — not one polyline that connects them.
+    Regression for: customer PDFs whose typography uses compound paths
+    (e.g. letter 'O' has outer + inner subpaths) were getting rendered as
+    one giant tangled polyline because all subpaths collapsed into one
+    VertList with spurious connecting lines between them."""
+    # Two disjoint rectangles in a single `d` string (a compound path).
+    compound = "M 0 0 L 10 0 L 10 10 L 0 10 Z M 20 20 L 30 20 L 30 30 L 20 30 Z"
+    out = build_lbrn2(template_path=TEMPLATE, shapes=[(compound, 0)])
+    placeholder = _placeholder(out)
+    shapes = placeholder.find("Children").findall("Shape")
+    # Two subpaths → two Shape elements (not one merged polyline).
+    assert len(shapes) == 2, (
+        f"expected 2 subpath shapes, got {len(shapes)} — compound path collapsed"
+    )
+    # Both share the same CutIndex (came from the same source path).
+    assert all(s.get("CutIndex") == "0" for s in shapes)
+    # Each has its own 4 vertices, NOT 8 jumbled vertices.
+    for shape in shapes:
+        verts = shape.find("VertList").text
+        assert verts.count("V") == 4, f"shape has {verts.count('V')} verts, expected 4"
+    # Neither vertex list bridges between the two rectangles.
+    s0_verts = shapes[0].find("VertList").text
+    s1_verts = shapes[1].find("VertList").text
+    assert "V20" not in s0_verts, "first subpath leaked vertices from the second"
+    assert "V0 0" not in s1_verts, "second subpath leaked the first subpath's start"
+
+
+def test_multi_subpath_open_path_not_closed():
+    """Multi-subpath strings without Z must NOT add closing primitives."""
+    open_compound = "M 0 0 L 10 0 L 10 10 M 20 20 L 30 20 L 30 30"
+    out = build_lbrn2(template_path=TEMPLATE, shapes=[(open_compound, 0)])
+    placeholder = _placeholder(out)
+    shapes = placeholder.find("Children").findall("Shape")
+    assert len(shapes) == 2
+    # Each subpath has 3 vertices, 2 edges, no closing edge.
+    for shape in shapes:
+        prim = shape.find("PrimList").text
+        assert prim == "L0 1L1 2", f"open subpath got closing edge: {prim}"
+
+
 def test_clears_previous_placeholder_children():
     out = build_lbrn2(template_path=TEMPLATE, shapes=[(RECT_PATH, 0)])
     placeholder = _placeholder(out)

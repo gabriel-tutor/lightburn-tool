@@ -61,20 +61,25 @@ def build_lbrn2(*, template_path: Path, shapes: list[tuple[str, int]]) -> bytes:
     for child in list(children_el):
         children_el.remove(child)
 
-    # Stamp new shapes.
+    # Stamp new shapes — one <Shape> per SVG subpath. A single source path
+    # with multiple `M` commands (e.g. a compound glyph with outer + inner
+    # outlines) becomes multiple <Shape> elements so subpaths don't collapse
+    # into one polyline with spurious connecting lines between them.
     for d, cut_index in shapes:
-        verts, closed = _parse_svg_path(d)
-        shape = etree.SubElement(
-            children_el,
-            "Shape",
-            {"Type": "Path", "CutIndex": str(cut_index)},
-        )
-        xform = etree.SubElement(shape, "XForm")
-        xform.text = "1 0 0 1 0 0"
-        vert_list = etree.SubElement(shape, "VertList")
-        vert_list.text = "".join(_format_vertex(x, y) for x, y in verts)
-        prim_list = etree.SubElement(shape, "PrimList")
-        prim_list.text = _format_primitives(len(verts), closed=closed)
+        for verts, closed in _parse_svg_path(d):
+            if not verts:
+                continue
+            shape = etree.SubElement(
+                children_el,
+                "Shape",
+                {"Type": "Path", "CutIndex": str(cut_index)},
+            )
+            xform = etree.SubElement(shape, "XForm")
+            xform.text = "1 0 0 1 0 0"
+            vert_list = etree.SubElement(shape, "VertList")
+            vert_list.text = "".join(_format_vertex(x, y) for x, y in verts)
+            prim_list = etree.SubElement(shape, "PrimList")
+            prim_list.text = _format_primitives(len(verts), closed=closed)
 
     return etree.tostring(tree, xml_declaration=True, encoding="UTF-8", pretty_print=True)
 
@@ -85,22 +90,36 @@ def build_lbrn2(*, template_path: Path, shapes: list[tuple[str, int]]) -> bytes:
 _SVG_TOKEN_RE = re.compile(r"([MLZmlz])\s*([0-9.\-\s,]*)")
 
 
-def _parse_svg_path(d: str) -> tuple[list[tuple[float, float]], bool]:
-    """Return (vertex list, closed flag) from an SVG path 'd' string.
+def _parse_svg_path(d: str) -> list[tuple[list[tuple[float, float]], bool]]:
+    """Split an SVG 'd' string into its subpaths.
 
-    Supports absolute M/L and Z only. Relative variants (m/l) and curves
-    (C/Q/etc.) are out of scope for MVP — Phase 1.5 enhancement.
+    Returns a list of (vertex list, closed flag) tuples — one per `M`-rooted
+    subpath. Z closes the current subpath only (subsequent vertices belong to
+    the next subpath if any). Supports absolute M/L/Z. Relative variants
+    (m/l/z) are treated as absolute for MVP — out of scope until the design
+    pipeline emits them.
     """
+    subpaths: list[tuple[list[tuple[float, float]], bool]] = []
     verts: list[tuple[float, float]] = []
     closed = False
     for cmd, args in _SVG_TOKEN_RE.findall(d):
         nums = [float(n) for n in args.replace(",", " ").split()] if args.strip() else []
-        if cmd in ("M", "m", "L", "l"):
+        if cmd in ("M", "m"):
+            # New subpath begins — finalise the previous one (if any non-empty).
+            if verts:
+                subpaths.append((verts, closed))
+                verts = []
+                closed = False
+            for i in range(0, len(nums), 2):
+                verts.append((nums[i], nums[i + 1]))
+        elif cmd in ("L", "l"):
             for i in range(0, len(nums), 2):
                 verts.append((nums[i], nums[i + 1]))
         elif cmd in ("Z", "z"):
             closed = True
-    return verts, closed
+    if verts:
+        subpaths.append((verts, closed))
+    return subpaths
 
 
 # ── LightBurn-format emitters ───────────────────────────────────────────────

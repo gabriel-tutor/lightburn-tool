@@ -50,7 +50,7 @@ class JobPreviewView(QWidget):
         self.cancel = QPushButton("Cancel")
         self.cancel.setObjectName("ghostButton")
         self.cancel.clicked.connect(self.cancel_requested.emit)
-        self.send = QPushButton("Send to LightBurn  →")
+        self.send = QPushButton("Open in LightBurn  →")
         self.send.setObjectName("sendButton")
         self.send.clicked.connect(self.send_requested.emit)
         footer.addStretch()
@@ -87,6 +87,17 @@ class JobPreviewView(QWidget):
         self.material_detail.setStyleSheet("font-size: 12px;")
         right.addWidget(self.material_detail)
 
+        # ── Direct-Open instruction block (2026-05-19 pivot) ────────────────
+        # LightBurn now imports the raw PDF, so the operator must manually
+        # assign cut layers. This label tells them which colour maps to which
+        # layer so they don't have to remember.
+        right.addSpacing(20)
+        right.addWidget(_section_label("Layer setup in LightBurn"))
+        self.layer_setup_label = QLabel()
+        self.layer_setup_label.setWordWrap(True)
+        self.layer_setup_label.setStyleSheet("font-size: 12px; color: #B8C2DC;")
+        right.addWidget(self.layer_setup_label)
+
         right.addStretch()
 
         self.preflight_label = QLabel()
@@ -119,6 +130,16 @@ class JobPreviewView(QWidget):
         self.material_label.setText(profile.material.name)
         self.material_detail.setText(
             f"{profile.material.clb_library}  →  {profile.material.clb_entry}"
+        )
+
+        # Hardcoded to the wallet template's C00/C01 cut settings for MVP.
+        # Future enhancement: parse profile.template.lbrn2_path's CutSetting
+        # elements at populate-time so each SKU shows its own layer setup.
+        self.layer_setup_label.setText(
+            "After import, select shapes in LightBurn and assign:\n"
+            "  •  Black strokes  →  C00 (Cut)       1000 mm/min · 20%\n"
+            "  •  Blue strokes   →  C01 (Engrave)   50 mm/sec · 15%\n"
+            f"Material library: {profile.material.clb_library} → {profile.material.clb_entry}"
         )
 
         if preflight.ok:

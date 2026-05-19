@@ -64,6 +64,12 @@ TEMPLATES: dict[str, _Template] = {
         canvas_w_mm=95.0,
         canvas_h_mm=110.0,
     ),
+    "wallet-t": _Template(
+        name="Wallet — Tall",
+        filename="wallet-tall.lbrn2",
+        canvas_w_mm=75.0,
+        canvas_h_mm=125.0,
+    ),
 }
 
 SKUS: tuple[_Sku, ...] = (
@@ -72,6 +78,20 @@ SKUS: tuple[_Sku, ...] = (
         template_key="wallet-s",
         material_key="leather",
         demo_pdf="LB-WALLET-LEATHER-S__demo.pdf",
+    ),
+    # Real customer order PDFs — filename IS the SKU (no `__` delimiter).
+    # The MainWindow's lenient lookup auto-flows these to preview on drop.
+    _Sku(
+        code="305-6737580-7658721",
+        template_key="wallet-s",
+        material_key="leather",
+        demo_pdf=None,
+    ),
+    _Sku(
+        code="304-4865183-6105121",
+        template_key="wallet-t",
+        material_key="leather",
+        demo_pdf=None,
     ),
 )
 

@@ -114,6 +114,41 @@ class SqliteProfileRepository(ProfileRepository):
             canvas_h_mm=t.canvas_h_mm,
         )
 
+    def list_profiles(self) -> list[SkuProfile]:
+        rows = self._conn.execute(
+            """
+            SELECT sp.sku, sp.overrides_json,
+                   t.id AS tid, t.name AS tname, t.lbrn2_path,
+                   t.canvas_w_mm, t.canvas_h_mm,
+                   m.id AS mid, m.name AS mname, m.clb_library, m.clb_entry, m.notes
+            FROM sku_profiles sp
+            JOIN templates  t ON t.id = sp.template_id
+            JOIN materials  m ON m.id = sp.material_id
+            ORDER BY sp.sku
+            """
+        ).fetchall()
+        return [
+            SkuProfile(
+                sku=Sku(r["sku"]),
+                template=Template(
+                    id=r["tid"],
+                    name=r["tname"],
+                    lbrn2_path=r["lbrn2_path"],
+                    canvas_w_mm=r["canvas_w_mm"],
+                    canvas_h_mm=r["canvas_h_mm"],
+                ),
+                material=Material(
+                    id=r["mid"],
+                    name=r["mname"],
+                    clb_library=r["clb_library"],
+                    clb_entry=r["clb_entry"],
+                    notes=r["notes"],
+                ),
+                overrides=json.loads(r["overrides_json"] or "{}"),
+            )
+            for r in rows
+        ]
+
     def list_materials(self) -> list[Material]:
         return [
             Material(

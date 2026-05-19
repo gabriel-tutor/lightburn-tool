@@ -123,10 +123,23 @@ def make_wallet_showcase() -> Path:
     return out
 
 
+def make_curve_test() -> Path:
+    """50×50mm canvas with one black-stroke ellipse. Used by Bezier-flatten tests
+    — fpdf2's ellipse() emits the shape as four cubic Bezier curves, exactly the
+    PDF segment type our extractor must flatten."""
+    pdf = _new_pdf(50.0, 50.0)
+    pdf.set_draw_color(0, 0, 0)
+    pdf.set_line_width(0.5)
+    pdf.ellipse(10, 10, 30, 30)
+    out = OUT_DIR / "curve-test.pdf"
+    pdf.output(str(out))
+    return out
+
+
 def main() -> None:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     written: list[Path] = []
-    for fn in (make_sample_vector, make_wallet_demo, make_wallet_showcase):
+    for fn in (make_sample_vector, make_wallet_demo, make_wallet_showcase, make_curve_test):
         path = fn()
         written.append(path)
         print(f"  ✓ {path.relative_to(REPO_ROOT)} ({path.stat().st_size} bytes)")

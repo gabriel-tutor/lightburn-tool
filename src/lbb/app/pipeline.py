@@ -1,18 +1,21 @@
-"""The job pipeline: PDF → SKU → preflight → .lbrn2 → LightBurn.
+"""The job pipeline: hand the customer's PDF directly to LightBurn.
 
-Pure orchestration. All side effects flow through the injected Port adapters.
+Direct-Open architecture (2026-05-19 pivot): we no longer parse the PDF's
+geometry or generate a `.lbrn2` from a template. LightBurn's native PDF
+importer preserves the design with full fidelity — our role is SKU lookup
++ operator instructions (handled upstream in the UI) + dispatch.
+
+The previous `extract_paths` → `build_lbrn2` → write-temp-file flow is
+preserved in the codebase under `core/template_builder.py` and
+`adapters/pdfium_reader.py:extract_paths` but is no longer in the live path.
+See docs/superpowers/specs/2026-05-19-direct-open-pivot-design.md.
 """
 
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 
 from lbb.app.job import Job, JobResult
-from lbb.core.errors import LbbError, PreflightFailed, SkuNotFound
-from lbb.core.extractor import extract_sku
-from lbb.core.palette import layer_index_for_color
-from lbb.core.preflight import run_preflight
-from lbb.core.template_builder import build_lbrn2
+from lbb.core.errors import LbbError
 from lbb.ports.lightburn import LightBurnPort
 from lbb.ports.pdf import PdfReader
 from lbb.ports.repository import ProfileRepository
@@ -23,44 +26,24 @@ class PipelineDeps:
     repo: ProfileRepository
     pdf: PdfReader
     lightburn: LightBurnPort
-    temp_dir: Path
+    temp_dir: Path  # vestigial under direct-open; kept for ABI compatibility
 
 
 def run_pipeline(job: Job, deps: PipelineDeps) -> JobResult:
-    """Execute the full job pipeline. Domain errors are caught and surfaced
-    through JobResult.error so the UI can render them; unexpected errors
-    still bubble up so they're not silently swallowed."""
+    """Open the customer's PDF directly in LightBurn.
+
+    The Job's `profile` (resolved upstream by the UI from filename or picker)
+    is passed through to the JobResult so the caller can still display the
+    SKU / template / material that this job represents — but it does not
+    influence what's loaded. LightBurn's importer handles all PDF parsing.
+    """
     try:
-        sku = extract_sku(job.source_pdf.name)
-        profile = deps.repo.get(sku)
-        if profile is None:
-            raise SkuNotFound(sku.value)
-
-        info = deps.pdf.read_info(job.source_pdf)
-        pf = run_preflight(
-            info,
-            canvas_mm=(profile.template.canvas_w_mm, profile.template.canvas_h_mm),
-        )
-        if not pf.ok:
-            raise PreflightFailed(reasons=pf.reasons)
-
-        paths = deps.pdf.extract_paths(job.source_pdf)
-        # Route each path to its layer by stroke colour. Preflight already
-        # rejected any off-palette colours, so layer_index_for_color should
-        # only ever return None for an edge case — fall back to layer 0.
-        shapes: list[tuple[str, int]] = [
-            (d, layer_index_for_color(color) or 0) for d, color in paths
-        ]
-
-        out_bytes = build_lbrn2(
-            template_path=Path(profile.template.lbrn2_path),
-            shapes=shapes,
-        )
-        deps.temp_dir.mkdir(parents=True, exist_ok=True)
-        out_path = deps.temp_dir / f"{sku.value}-{datetime.now():%Y%m%d-%H%M%S}.lbrn2"
-        out_path.write_bytes(out_bytes)
-
-        deps.lightburn.load_file(out_path)
-        return JobResult(ok=True, output_path=out_path, sku=sku, profile=profile)
+        deps.lightburn.load_file(job.source_pdf)
     except LbbError as e:
         return JobResult(ok=False, error=str(e))
+    return JobResult(
+        ok=True,
+        output_path=job.source_pdf,
+        sku=job.profile.sku if job.profile else None,
+        profile=job.profile,
+    )

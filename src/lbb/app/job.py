@@ -6,9 +6,15 @@ from lbb.core.models import Sku, SkuProfile
 
 @dataclass(frozen=True, slots=True)
 class Job:
-    """A single PDF-load request from the operator."""
+    """A single PDF-load request from the operator.
+
+    `profile` is set when the operator picked the SKU manually (filename had
+    no `<SKU>__` prefix). When None, the pipeline falls back to extracting
+    the SKU from the filename — the historical happy path.
+    """
 
     source_pdf: Path
+    profile: SkuProfile | None = None
 
 
 @dataclass(frozen=True, slots=True)
