@@ -1,4 +1,4 @@
-"""Main window + controller for LightBurn Bridge.
+"""Main window + controller for Flanacom Tool.
 
 Stack of two views:
   • HomeView   — drop zone + status pill (operator's idle screen)
@@ -10,8 +10,10 @@ render thumbnail, populate preview, switch. Errors surface via QMessageBox.
 
 import sys
 import traceback
+from importlib.resources import files
 from pathlib import Path
 
+from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtWidgets import QMainWindow, QMessageBox, QStackedWidget
 
 from lbb.app.job import Job
@@ -30,15 +32,25 @@ _WINDOW_W = 960
 _WINDOW_H = 640
 
 
+def _load_icon() -> QIcon:
+    """Load the Flanacom app icon from package assets (works in dev + bundle)."""
+    pix = QPixmap()
+    pix.loadFromData(
+        (files("lbb.ui.assets") / "flanacom.ico").read_bytes(), "ICO"
+    )
+    return QIcon(pix)
+
+
 class MainWindow(QMainWindow):
     def __init__(self, deps: PipelineDeps) -> None:
         super().__init__()
         self.deps = deps
-        self.setWindowTitle("LightBurn Bridge")
+        self.setWindowTitle("Flanacom Tool")
+        self.setWindowIcon(_load_icon())
         self.resize(_WINDOW_W, _WINDOW_H)
 
         self.stack = QStackedWidget()
-        self.home = HomeView(deps.lightburn)
+        self.home = HomeView()
         self.preview = JobPreviewView()
         self.admin = AdminView(deps.repo)
         self.stack.addWidget(self.home)

@@ -16,6 +16,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(SPECPATH).resolve().parent
 SRC = REPO_ROOT / "src"
+ASSETS = SRC / "lbb" / "ui" / "assets"
 
 block_cipher = None
 
@@ -26,6 +27,9 @@ a = Analysis(
     datas=[
         # Bundle the QSS as package data — importlib.resources reads it from here.
         (str(SRC / "lbb" / "ui" / "theme" / "app.qss"), "lbb/ui/theme"),
+        # Brand assets (Flanacom icon + header logo).
+        (str(ASSETS / "flanacom.ico"), "lbb/ui/assets"),
+        (str(ASSETS / "flanacom-logo.png"), "lbb/ui/assets"),
     ],
     hiddenimports=[],
     hookspath=[],
@@ -47,7 +51,8 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name="LightBurn Bridge",
+    name="Flanacom Tool",
+    icon=str(ASSETS / "flanacom.ico"),
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -63,14 +68,15 @@ coll = COLLECT(
     strip=False,
     upx=False,
     upx_exclude=[],
-    name="LightBurn Bridge",
+    name="Flanacom Tool",
 )
 
 if sys.platform == "darwin":
     app = BUNDLE(
         coll,
-        name="LightBurn Bridge.app",
-        bundle_identifier="com.hauke.lightburn-bridge",
+        name="Flanacom Tool.app",
+        bundle_identifier="com.flanacom.tool",
+        icon=str(ASSETS / "flanacom.ico"),
         info_plist={
             "NSHighResolutionCapable": True,
             "NSPrincipalClass": "NSApplication",

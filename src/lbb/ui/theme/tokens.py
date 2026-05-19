@@ -1,8 +1,8 @@
-"""Design tokens for the LightBurn Bridge UI.
+"""Design tokens for the Flanacom Tool UI.
 
-Refined minimalism — Linear / Things 3 / Raycast aesthetic. Dark by default
-for laser-shop floor conditions; high-contrast statuses so state changes
-are unmistakable through safety glasses.
+Light theme tuned to the Flanacom brand: warm orange primary action,
+clean off-white surfaces, near-black wordmark text. Token table mirrored
+in `app.qss` — keep them in sync.
 """
 
 
@@ -21,43 +21,44 @@ class Font:
 
 
 class Color:
-    # Surfaces — graduated darkness; the active surface is brighter than its
-    # container so cards feel "lifted" without explicit shadows.
-    BG = "#0A0C12"
-    SURFACE = "#11141C"
-    SURFACE_ELEVATED = "#161A25"
-    SURFACE_HOVER = "#1B2030"
-    BORDER = "#222837"
-    BORDER_STRONG = "#2D3447"
+    # Surfaces — light off-white background, white cards, subtle elevated tones.
+    BG = "#FAFAFA"
+    SURFACE = "#FFFFFF"
+    SURFACE_ELEVATED = "#FFFFFF"  # shadows do the lifting (QGraphicsDropShadowEffect)
+    SURFACE_HOVER = "#F5F5F4"
+    BORDER = "#E5E7EB"
+    BORDER_STRONG = "#D1D5DB"
 
-    # Text
-    TEXT = "#E6E8EE"
-    TEXT_DIM = "#8A92A6"
-    TEXT_FAINT = "#5B6479"
+    # Text — black-ish (matches the Flanacom wordmark) at the top of the scale.
+    TEXT = "#1A1A1A"
+    TEXT_DIM = "#6B7280"
+    TEXT_FAINT = "#9CA3AF"
 
-    # Accent — cyan-leaning, kept singular so it always means "primary action"
-    ACCENT = "#7DD3FC"
-    ACCENT_HOVER = "#A5E0FB"
-    ACCENT_PRESSED = "#5CC3F0"
-    ACCENT_DIM = "#3FA0CC"
+    # Accent — Flanacom orange (the shopping-bag mark).
+    ACCENT = "#F58A1F"
+    ACCENT_HOVER = "#FFA947"
+    ACCENT_PRESSED = "#D97706"
+    ACCENT_DIM = "#FBBF77"
+    ACCENT_TINT = "#FFF3E5"  # very faint peach for hover backgrounds
 
-    # Status — high-contrast through safety-glass tints
-    OK = "#A3E635"
-    WARN = "#FBBF24"
-    ERROR = "#FB7185"
+    # Status — high-contrast against the light surfaces.
+    OK = "#10B981"
+    WARN = "#F59E0B"
+    ERROR = "#DC2626"
 
-    # Layer-color references (mirrors core.palette indices 0..2 for the UI
-    # to use when surfacing layer info in the preview chip etc.)
-    LAYER_CUT = "#FFFFFF"  # render black-on-dark as white for contrast
-    LAYER_ENGRAVE = "#7DD3FC"
+    # Layer-color references (mirrors core.palette indices for surfacing layer
+    # info in the preview chip etc.). On a light bg, black represents cut
+    # directly; engrave borrows the brand orange.
+    LAYER_CUT = "#1A1A1A"
+    LAYER_ENGRAVE = "#F58A1F"
 
 
 class Radius:
     XS = 4
     SM = 6
-    MD = 10
-    LG = 14
-    XL = 22
+    MD = 8
+    LG = 12
+    XL = 18
 
 
 class Space:

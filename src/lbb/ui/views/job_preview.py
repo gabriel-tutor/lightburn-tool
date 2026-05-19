@@ -94,8 +94,8 @@ class JobPreviewView(QWidget):
         right.addSpacing(20)
         right.addWidget(_section_label("Layer setup in LightBurn"))
         self.layer_setup_label = QLabel()
+        self.layer_setup_label.setObjectName("layerSetup")
         self.layer_setup_label.setWordWrap(True)
-        self.layer_setup_label.setStyleSheet("font-size: 12px; color: #B8C2DC;")
         right.addWidget(self.layer_setup_label)
 
         right.addStretch()

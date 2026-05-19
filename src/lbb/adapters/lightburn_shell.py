@@ -44,8 +44,8 @@ def _find_lightburn_exe(*, platform: str | None = None) -> Path | None:
     if not plat.startswith("win"):
         return None
     candidates = [
-        Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "LightBurn" / "LightBurn.exe",
-        Path(os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)"))
+        Path(os.environ.get("PROGRAMFILES", r"C:\Program Files")) / "LightBurn" / "LightBurn.exe",
+        Path(os.environ.get("PROGRAMFILES(X86)", r"C:\Program Files (x86)"))
         / "LightBurn" / "LightBurn.exe",
         Path(os.environ.get("LOCALAPPDATA", "")) / "LightBurn" / "LightBurn.exe",
     ]

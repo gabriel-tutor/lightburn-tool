@@ -1,18 +1,17 @@
 from pathlib import Path
 
-from lbb.adapters.lightburn_fake import LightBurnFake
 from lbb.ui.views.home import HomeView
 
 
 def test_constructs_without_crashing(qtbot):
-    view = HomeView(LightBurnFake())
+    view = HomeView()
     qtbot.addWidget(view)
 
 
 def test_relays_pdf_dropped_to_pdf_chosen(qtbot, tmp_path):
     pdf = tmp_path / "LB-X__y.pdf"
     pdf.write_bytes(b"%PDF-1.4\n")
-    view = HomeView(LightBurnFake())
+    view = HomeView()
     qtbot.addWidget(view)
 
     received: list[Path] = []
@@ -22,13 +21,9 @@ def test_relays_pdf_dropped_to_pdf_chosen(qtbot, tmp_path):
     assert received == [pdf]
 
 
-def test_status_pill_reflects_lightburn_running_state(qtbot):
-    view = HomeView(LightBurnFake(running=True))
+def test_no_status_pill_in_header(qtbot):
+    """Direct-open architecture: no LightBurn connection status to display."""
+    view = HomeView()
     qtbot.addWidget(view)
-    view._poll()
-    assert view.status.objectName() == "statusOk"
-
-    view_down = HomeView(LightBurnFake(running=False))
-    qtbot.addWidget(view_down)
-    view_down._poll()
-    assert view_down.status.objectName() == "statusError"
+    # The widget that used to be `view.status` no longer exists.
+    assert not hasattr(view, "status")

@@ -1,6 +1,8 @@
+from importlib.resources import files
 from pathlib import Path
 
-from PySide6.QtCore import QTimer, Signal
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QFileDialog,
     QHBoxLayout,
@@ -10,45 +12,54 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from lbb.ports.lightburn import LightBurnPort
 from lbb.ui.widgets.drop_zone import DropZone
-from lbb.ui.widgets.status_pill import StatusPill
 
-_POLL_INTERVAL_MS = 2000
+_LOGO_HEIGHT = 32  # px — header logo display size
 
 
 class HomeView(QWidget):
-    """The operator's primary screen — drop zone + status pill + nav."""
+    """The operator's primary screen — drop zone + brand header + nav.
+
+    No status pill: the direct-open flow invokes LightBurn (launching it
+    if needed), so there's nothing to "connect to" up-front and the
+    status would only be noise.
+    """
 
     pdf_chosen = Signal(Path)
     open_admin = Signal()
     open_audit = Signal()
 
-    def __init__(self, lightburn: LightBurnPort) -> None:
+    def __init__(self) -> None:
         super().__init__()
-        self._lb = lightburn
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(28, 22, 28, 22)
         layout.setSpacing(20)
 
-        # ── Header: two-tone wordmark (left) + status pill (right) ────────
+        # ── Header: Flanacom logo (left) + "Engraver" subtitle ────────────
         header = QHBoxLayout()
-        header.setSpacing(2)
+        header.setSpacing(12)
 
-        title_row = QHBoxLayout()
-        title_row.setSpacing(6)
-        brand = QLabel("LightBurn")
-        brand.setObjectName("wordmark")
-        sub = QLabel("Bridge")
-        sub.setObjectName("wordmarkAccent")
-        title_row.addWidget(brand)
-        title_row.addWidget(sub)
+        logo_label = QLabel()
+        logo_label.setObjectName("brandLogo")
+        logo_pixmap = QPixmap()
+        # Logo PNG bundled inside the package so importlib.resources finds
+        # it in dev AND in the PyInstaller one-folder bundle.
+        logo_bytes = (files("lbb.ui.assets") / "flanacom-logo.png").read_bytes()
+        logo_pixmap.loadFromData(logo_bytes, "PNG")
+        if not logo_pixmap.isNull():
+            scaled = logo_pixmap.scaledToHeight(_LOGO_HEIGHT, Qt.SmoothTransformation)
+            logo_label.setPixmap(scaled)
+        else:
+            logo_label.setText("FLANACOM")
+            logo_label.setObjectName("wordmark")
 
-        header.addLayout(title_row)
+        subtitle = QLabel("Engraver")
+        subtitle.setObjectName("wordmarkAccent")
+
+        header.addWidget(logo_label)
+        header.addWidget(subtitle)
         header.addStretch()
-        self.status = StatusPill()
-        header.addWidget(self.status)
         layout.addLayout(header)
 
         # ── Drop zone fills the rest of the screen ────────────────────────
@@ -69,15 +80,6 @@ class HomeView(QWidget):
         footer.addWidget(admin_btn)
         footer.addWidget(audit_btn)
         layout.addLayout(footer)
-
-        # PING poll: keep the status pill honest about LightBurn's state.
-        self._timer = QTimer(self)
-        self._timer.timeout.connect(self._poll)
-        self._timer.start(_POLL_INTERVAL_MS)
-        self._poll()
-
-    def _poll(self) -> None:
-        self.status.set_running(self._lb.is_running())
 
     def _open_browse_dialog(self) -> None:
         path_str, _ = QFileDialog.getOpenFileName(

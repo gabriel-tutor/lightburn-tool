@@ -6,7 +6,6 @@ from unittest.mock import patch
 import pytest
 
 from lbb.adapters.lightburn_shell import LightBurnShellAdapter
-from lbb.core.errors import LightBurnNotRunning
 
 
 def test_open_command_for_macos():
