@@ -146,3 +146,28 @@ class LightBurnShellAdapter(LightBurnPort):
 
     def status(self) -> LBStatus:
         return LBStatus(running=self.is_running(), raw="shell")
+
+    def close_running(self) -> None:
+        """Force-terminate the running LightBurn process. Safe to call when
+        LightBurn isn't running (exit 128 / no matching process is tolerated).
+        Blocks until the OS confirms the process has been terminated."""
+        self._close_running(platform=sys.platform)
+
+    def _close_running(self, *, platform: str) -> None:
+        if platform.startswith("win"):
+            cmd = ["taskkill", "/F", "/IM", f"{self.app_name}.exe"]
+        else:
+            cmd = ["pkill", "-x", self.app_name]
+        try:
+            subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=_OPEN_TIMEOUT,
+                check=False,  # exit code 128 (no process) is not an error
+                creationflags=_CREATE_NO_WINDOW,
+            )
+        except (subprocess.SubprocessError, FileNotFoundError):
+            # Termination tool itself missing — give up silently; the
+            # next dispatch will surface any downstream problem.
+            return

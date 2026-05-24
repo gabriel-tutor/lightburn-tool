@@ -109,6 +109,39 @@ def test_open_command_for_windows_falls_back_to_shell_when_exe_not_found():
     assert cmd[:4] == ["cmd", "/c", "start", ""]
 
 
+def test_close_running_uses_taskkill_on_windows():
+    """Windows: close_running invokes `taskkill /F /IM LightBurn.exe`
+    (force-terminate by image name). Exit codes are tolerated — exit 128
+    (no matching process) is OK."""
+    with patch("subprocess.run") as mock_run:
+        mock_run.return_value.returncode = 0
+        adapter = LightBurnShellAdapter()
+        adapter._close_running(platform="win32")
+        cmd = mock_run.call_args.args[0]
+        assert cmd[:2] == ["taskkill", "/F"]
+        assert "LightBurn.exe" in " ".join(cmd)
+
+
+def test_close_running_uses_pkill_on_posix():
+    """POSIX: close_running invokes `pkill -x LightBurn`."""
+    with patch("subprocess.run") as mock_run:
+        mock_run.return_value.returncode = 0
+        adapter = LightBurnShellAdapter()
+        adapter._close_running(platform="darwin")
+        cmd = mock_run.call_args.args[0]
+        assert cmd == ["pkill", "-x", "LightBurn"]
+
+
+def test_close_running_swallows_no_matching_process():
+    """If LightBurn isn't running, close_running must NOT raise."""
+    with patch("subprocess.run") as mock_run:
+        # taskkill: exit 128 = "process not found"
+        mock_run.return_value.returncode = 128
+        adapter = LightBurnShellAdapter()
+        # Should not raise
+        adapter._close_running(platform="win32")
+
+
 def test_load_file_uses_popen_not_run():
     """Use Popen (fire-and-forget) — LightBurn is a GUI app and won't exit, so
     subprocess.run would block on its timeout. Regression for the 2026-05-19

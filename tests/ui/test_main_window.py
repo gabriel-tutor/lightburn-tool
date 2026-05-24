@@ -94,6 +94,136 @@ def test_no_sku_in_filename_invokes_picker_and_flows_to_preview(qtbot, deps, tmp
     assert "LB-WALLET-LEATHER-S" in window.preview.sku_label.text()
 
 
+def test_no_close_prompt_on_first_ever_send(qtbot, deps, monkeypatch):
+    """First send in a session — there's no previous job, so no prompt fires."""
+    from PySide6.QtWidgets import QMessageBox
+
+    monkeypatch.setattr(QMessageBox, "information", lambda *a, **kw: None)
+    confirm_calls: list = []
+    monkeypatch.setattr(
+        MainWindow,
+        "_confirm_close_previous",
+        lambda self, profile: (confirm_calls.append(profile), "yes")[1],
+    )
+
+    window = MainWindow(deps)
+    qtbot.addWidget(window)
+    window.home.pdf_chosen.emit(PDF_DEMO)
+    window.preview.send.click()
+
+    assert confirm_calls == [], "prompt fired on first-ever send"
+    assert deps.lightburn.close_calls == 0
+    assert deps.lightburn.loaded == [PDF_DEMO]
+
+
+def test_close_prompt_fires_on_second_send_when_lightburn_still_running(
+    qtbot, deps, tmp_path, monkeypatch
+):
+    """Second send + LightBurn still running → prompt asks operator."""
+    from PySide6.QtWidgets import QMessageBox
+
+    monkeypatch.setattr(QMessageBox, "information", lambda *a, **kw: None)
+    confirm_calls: list = []
+    monkeypatch.setattr(
+        MainWindow,
+        "_confirm_close_previous",
+        lambda self, profile: (confirm_calls.append(profile), "yes")[1],
+    )
+
+    window = MainWindow(deps)
+    qtbot.addWidget(window)
+    # 1st job
+    window.home.pdf_chosen.emit(PDF_DEMO)
+    window.preview.send.click()
+    # 2nd job — different PDF (copy so the path differs)
+    pdf_b = tmp_path / "second.pdf"
+    pdf_b.write_bytes(PDF_DEMO.read_bytes())
+    window.home.pdf_chosen.emit(pdf_b)
+    window.preview.send.click()
+
+    assert len(confirm_calls) == 1
+    assert confirm_calls[0].sku.value == "LB-WALLET-LEATHER-S"
+    assert deps.lightburn.close_calls == 1
+    assert deps.lightburn.loaded == [PDF_DEMO, pdf_b]
+
+
+def test_close_prompt_no_keep_open_skips_close_but_still_dispatches(
+    qtbot, deps, tmp_path, monkeypatch
+):
+    """If operator picks 'No, keep open', we don't call close_running but
+    still send the new PDF (LightBurn will surface its own save prompt)."""
+    from PySide6.QtWidgets import QMessageBox
+
+    monkeypatch.setattr(QMessageBox, "information", lambda *a, **kw: None)
+    monkeypatch.setattr(
+        MainWindow, "_confirm_close_previous", lambda self, profile: "no"
+    )
+
+    window = MainWindow(deps)
+    qtbot.addWidget(window)
+    window.home.pdf_chosen.emit(PDF_DEMO)
+    window.preview.send.click()
+    pdf_b = tmp_path / "second.pdf"
+    pdf_b.write_bytes(PDF_DEMO.read_bytes())
+    window.home.pdf_chosen.emit(pdf_b)
+    window.preview.send.click()
+
+    assert deps.lightburn.close_calls == 0
+    assert deps.lightburn.loaded == [PDF_DEMO, pdf_b]
+
+
+def test_close_prompt_cancel_aborts_send(qtbot, deps, tmp_path, monkeypatch):
+    """If operator picks Cancel, we don't close and we don't send."""
+    from PySide6.QtWidgets import QMessageBox
+
+    monkeypatch.setattr(QMessageBox, "information", lambda *a, **kw: None)
+    monkeypatch.setattr(
+        MainWindow, "_confirm_close_previous", lambda self, profile: "cancel"
+    )
+
+    window = MainWindow(deps)
+    qtbot.addWidget(window)
+    window.home.pdf_chosen.emit(PDF_DEMO)
+    window.preview.send.click()
+    pdf_b = tmp_path / "second.pdf"
+    pdf_b.write_bytes(PDF_DEMO.read_bytes())
+    window.home.pdf_chosen.emit(pdf_b)
+    window.preview.send.click()
+
+    assert deps.lightburn.close_calls == 0
+    assert deps.lightburn.loaded == [PDF_DEMO]  # second dispatch aborted
+
+
+def test_no_close_prompt_when_lightburn_already_closed(
+    qtbot, deps, tmp_path, monkeypatch
+):
+    """If the operator already closed LightBurn manually between jobs,
+    is_running() returns False and we skip the prompt entirely."""
+    from PySide6.QtWidgets import QMessageBox
+
+    monkeypatch.setattr(QMessageBox, "information", lambda *a, **kw: None)
+    confirm_calls: list = []
+    monkeypatch.setattr(
+        MainWindow,
+        "_confirm_close_previous",
+        lambda self, profile: (confirm_calls.append(profile), "yes")[1],
+    )
+
+    window = MainWindow(deps)
+    qtbot.addWidget(window)
+    window.home.pdf_chosen.emit(PDF_DEMO)
+    window.preview.send.click()
+    # Simulate operator closing LightBurn between jobs.
+    deps.lightburn._running = False  # noqa: SLF001
+    pdf_b = tmp_path / "second.pdf"
+    pdf_b.write_bytes(PDF_DEMO.read_bytes())
+    window.home.pdf_chosen.emit(pdf_b)
+    window.preview.send.click()
+
+    assert confirm_calls == []
+    assert deps.lightburn.close_calls == 0
+
+
 def test_send_after_picker_dispatches_to_lightburn(qtbot, deps, tmp_path, monkeypatch):
     """End-to-end: dropping a no-SKU PDF → picker → Send must successfully
     dispatch to LightBurn. Regression for: picker resolves the profile but

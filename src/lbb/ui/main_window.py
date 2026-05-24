@@ -66,6 +66,11 @@ class MainWindow(QMainWindow):
 
         self._pending_pdf: Path | None = None
         self._pending_profile: SkuProfile | None = None
+        # Tracks the most recently dispatched job so we can offer to close
+        # the previous one before sending the next (avoids LightBurn's
+        # "Save changes?" dialog).
+        self._last_opened_pdf: Path | None = None
+        self._last_opened_profile: SkuProfile | None = None
 
     # ── Navigation helpers ──────────────────────────────────────────────────
 
@@ -137,6 +142,17 @@ class MainWindow(QMainWindow):
     def _on_send(self) -> None:
         if self._pending_pdf is None:
             return
+
+        # If a previous job is still loaded in LightBurn, offer to close it
+        # cleanly before opening the new one. Avoids LightBurn's native
+        # "Save changes?" dialog.
+        if self._should_offer_close_previous():
+            choice = self._confirm_close_previous(self._last_opened_profile)
+            if choice == "cancel":
+                return
+            if choice == "yes":
+                self.deps.lightburn.close_running()
+
         result = run_pipeline(
             Job(source_pdf=self._pending_pdf, profile=self._pending_profile),
             self.deps,
@@ -147,8 +163,54 @@ class MainWindow(QMainWindow):
                 "Loaded into LightBurn",
                 f"{result.output_path.name}\n\nPress Start on the laser.",
             )
+            self._last_opened_pdf = self._pending_pdf
+            self._last_opened_profile = self._pending_profile
             self._pending_pdf = None
             self._pending_profile = None
             self._show_home()
         else:
             QMessageBox.critical(self, "Send failed", result.error or "Unknown error")
+
+    def _should_offer_close_previous(self) -> bool:
+        """True iff there's a previously-dispatched PDF different from the
+        current one, AND LightBurn is still running with it."""
+        if self._last_opened_pdf is None:
+            return False
+        if self._last_opened_pdf == self._pending_pdf:
+            return False
+        return self.deps.lightburn.is_running()
+
+    def _confirm_close_previous(self, prev_profile: SkuProfile | None) -> str:
+        """Show a 3-button dialog: returns 'yes' | 'no' | 'cancel'.
+
+        Test seam — pytest-qt tests monkey-patch this method to avoid
+        driving the modal interactively.
+        """
+        sku_text = (
+            prev_profile.sku.value if prev_profile is not None else "the previous PDF"
+        )
+        box = QMessageBox(self)
+        box.setWindowTitle("Close previous job?")
+        box.setIcon(QMessageBox.Question)
+        box.setText(f"You had <b>{sku_text}</b> open in LightBurn.")
+        box.setInformativeText(
+            "Finished engraving it?\n\n"
+            "• Yes — I'll close LightBurn cleanly, then open the new PDF "
+            "(no \"Save changes?\" prompt).\n"
+            "• No — Open the new PDF anyway. LightBurn will ask what to "
+            "do with the previous one.\n"
+            "• Cancel — Stay on this preview and don't send."
+        )
+        yes_btn = box.addButton("Yes, close it", QMessageBox.AcceptRole)
+        no_btn = box.addButton("No, keep open", QMessageBox.DestructiveRole)
+        cancel_btn = box.addButton("Cancel", QMessageBox.RejectRole)
+        box.setDefaultButton(yes_btn)
+        box.exec()
+        clicked = box.clickedButton()
+        if clicked is yes_btn:
+            return "yes"
+        if clicked is no_btn:
+            return "no"
+        if clicked is cancel_btn:
+            return "cancel"
+        return "cancel"  # window closed via X → treat as cancel
