@@ -30,6 +30,17 @@ a = Analysis(
         # Brand assets (Flanacom icon + header logo).
         (str(ASSETS / "flanacom.ico"), "lbb/ui/assets"),
         (str(ASSETS / "flanacom-logo.png"), "lbb/ui/assets"),
+        # Seed data for the simulated order backend (folder + per-item PDFs).
+        (str(ASSETS / "seed-orders" / "orders.json"),
+            "lbb/ui/assets/seed-orders"),
+        (str(ASSETS / "seed-orders" / "305-A-john.pdf"),
+            "lbb/ui/assets/seed-orders"),
+        (str(ASSETS / "seed-orders" / "305-B-jane.pdf"),
+            "lbb/ui/assets/seed-orders"),
+        (str(ASSETS / "seed-orders" / "305-C-giftcard.pdf"),
+            "lbb/ui/assets/seed-orders"),
+        (str(ASSETS / "seed-orders" / "304-A-roman.pdf"),
+            "lbb/ui/assets/seed-orders"),
     ],
     hiddenimports=[],
     hookspath=[],

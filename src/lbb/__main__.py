@@ -66,6 +66,7 @@ def main() -> int:
     paths = AppPaths(
         db_path=_DATA_HOME / "profiles.sqlite",
         temp_dir=_DATA_HOME / "jobs",
+        orders_dir=_DATA_HOME / "orders",
     )
     deps = build_pipeline_deps(paths)
 

@@ -5,8 +5,10 @@ goes through build_pipeline_deps() so the wiring lives in exactly one file.
 """
 
 from dataclasses import dataclass
+from importlib.resources import files
 from pathlib import Path
 
+from lbb.adapters.json_orders import JsonOrderRepository
 from lbb.adapters.lightburn_shell import LightBurnShellAdapter
 from lbb.adapters.pdfium_reader import PdfiumReader
 from lbb.adapters.sqlite_repo import SqliteProfileRepository
@@ -18,6 +20,7 @@ from lbb.ports.lightburn import LightBurnPort
 class AppPaths:
     db_path: Path
     temp_dir: Path
+    orders_dir: Path | None = None  # user-home directory holding orders.json + PDFs
 
 
 def _select_lightburn() -> LightBurnPort:
@@ -36,9 +39,17 @@ def _select_lightburn() -> LightBurnPort:
 
 def build_pipeline_deps(paths: AppPaths) -> PipelineDeps:
     """Return a PipelineDeps wired with production adapters."""
+    orders_repo: JsonOrderRepository | None = None
+    if paths.orders_dir is not None:
+        # Bundled seed-orders folder lives inside the package so
+        # importlib.resources finds it both in dev and in the PyInstaller
+        # one-folder bundle.
+        seed_dir = Path(str(files("lbb.ui.assets") / "seed-orders"))
+        orders_repo = JsonOrderRepository(paths.orders_dir, seed_dir=seed_dir)
     return PipelineDeps(
         repo=SqliteProfileRepository(paths.db_path),
         pdf=PdfiumReader(),
         lightburn=_select_lightburn(),
         temp_dir=paths.temp_dir,
+        orders=orders_repo,
     )

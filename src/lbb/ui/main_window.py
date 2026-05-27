@@ -18,14 +18,13 @@ from PySide6.QtWidgets import QMainWindow, QMessageBox, QStackedWidget
 
 from lbb.app.job import Job
 from lbb.app.pipeline import PipelineDeps, run_pipeline
-from lbb.core.errors import LbbError
-from lbb.core.extractor import extract_sku
-from lbb.core.models import Sku, SkuProfile
+from lbb.core.models import SkuProfile
+from lbb.core.order import Order, OrderItem
 from lbb.core.preflight import run_preflight
-from lbb.ui.dialogs.sku_picker import SkuPickerDialog
 from lbb.ui.views.admin import AdminView
 from lbb.ui.views.home import HomeView
 from lbb.ui.views.job_preview import JobPreviewView
+from lbb.ui.views.order_view import OrderView
 
 _THUMB_PX = 720
 _WINDOW_W = 960
@@ -50,18 +49,23 @@ class MainWindow(QMainWindow):
         self.resize(_WINDOW_W, _WINDOW_H)
 
         self.stack = QStackedWidget()
-        self.home = HomeView()
+        self.home = HomeView(deps.orders)
         self.preview = JobPreviewView()
+        self.order_view = OrderView()
         self.admin = AdminView(deps.repo)
         self.stack.addWidget(self.home)
         self.stack.addWidget(self.preview)
+        self.stack.addWidget(self.order_view)
         self.stack.addWidget(self.admin)
         self.setCentralWidget(self.stack)
 
-        self.home.pdf_chosen.connect(self._on_pdf_chosen)
+        self.home.order_searched.connect(self._on_order_searched)
+        self.home.order_selected.connect(self._open_order)
         self.home.open_admin.connect(lambda: self.stack.setCurrentWidget(self.admin))
-        self.preview.cancel_requested.connect(self._show_home)
+        self.preview.cancel_requested.connect(self._on_preview_cancel)
         self.preview.send_requested.connect(self._on_send)
+        self.order_view.item_chosen.connect(self._on_item_chosen)
+        self.order_view.back_requested.connect(self._show_home)
         self.admin.back_requested.connect(self._show_home)
 
         self._pending_pdf: Path | None = None
@@ -71,47 +75,73 @@ class MainWindow(QMainWindow):
         # "Save changes?" dialog).
         self._last_opened_pdf: Path | None = None
         self._last_opened_profile: SkuProfile | None = None
+        # Order routing state. When the operator opened an order (via search
+        # or recent-orders click) and navigated through the order view,
+        # remember it so cancel/send return to the order view rather than home.
+        self._current_order: Order | None = None
+        self._completed_items: set[tuple[str, str]] = set()
 
     # ── Navigation helpers ──────────────────────────────────────────────────
 
     def _show_home(self) -> None:
+        self._current_order = None
+        self.home.refresh_recent()
         self.stack.setCurrentWidget(self.home)
 
     def _show_preview(self) -> None:
         self.stack.setCurrentWidget(self.preview)
 
+    def _show_order(self) -> None:
+        self.stack.setCurrentWidget(self.order_view)
+
     # ── Controller flow ─────────────────────────────────────────────────────
 
-    def _on_pdf_chosen(self, path: Path) -> None:
-        try:
-            sku = extract_sku(path.name)
-            profile = self.deps.repo.get(sku)
-            if profile is None:
-                QMessageBox.warning(
-                    self,
-                    "Unknown SKU",
-                    f"No profile mapped for {sku.value}.\n\nAdd one via Admin first.",
-                )
-                return
-        except LbbError:
-            # Filename has no `__` delimiter. Try the whole stem as a SKU first
-            # (customer-order-numbered files can be registered directly), and
-            # only fall back to the manual picker if that misses too.
-            stem = path.stem.strip()
-            profile = self.deps.repo.get(Sku(stem)) if stem else None
-            if profile is None:
-                profile = self._prompt_for_sku(path)
-            if profile is None:
-                return  # operator cancelled or no SKUs configured
+    def _on_order_searched(self, order_number: str) -> None:
+        """Operator submitted the order-number search input."""
+        if self.deps.orders is None:
+            self.home.show_not_found(order_number)
+            return
+        order = self.deps.orders.get(order_number)
+        if order is None:
+            self.home.show_not_found(order_number)
+            return
+        self._open_order(order)
 
-        self._continue_with_profile(path, profile)
+    def _open_order(self, order: Order) -> None:
+        """Populate the order view with `order` and switch to it."""
+        self._current_order = order
+        known_skus = {
+            i.sku.value for i in order.items if self.deps.repo.get(i.sku) is not None
+        }
+        completed_ids = {
+            item_id
+            for (order_no, item_id) in self._completed_items
+            if order_no == order.order_number
+        }
+        self.order_view.populate(
+            order, completed_ids=completed_ids, known_skus=known_skus
+        )
+        self._show_order()
 
-    def _prompt_for_sku(self, path: Path) -> SkuProfile | None:
-        """Open the SKU picker dialog. Returns the chosen profile, or None
-        if cancelled or no SKUs are configured."""
-        dlg = SkuPickerDialog(self.deps.repo, path.name, parent=self)
-        dlg.exec()
-        return dlg.chosen_profile
+    def _on_item_chosen(self, item: OrderItem) -> None:
+        """Operator clicked Engrave on an order item — load its profile and
+        route to the existing preview screen."""
+        if self._current_order is None:
+            return
+        profile = self.deps.repo.get(item.sku)
+        if profile is None:
+            QMessageBox.warning(
+                self,
+                "Unknown SKU",
+                f"No profile mapped for {item.sku.value}.\n\nAdd one via Admin first.",
+            )
+            return
+        # PDF path was resolved to absolute by the JSON adapter at load time.
+        item_pdf = Path(item.pdf_path)
+        if not item_pdf.is_absolute():
+            # Defensive fallback for hand-constructed Orders (e.g. in tests).
+            item_pdf = Path(item.pdf_path)
+        self._continue_with_profile(item_pdf, profile)
 
     def _continue_with_profile(self, path: Path, profile: SkuProfile) -> None:
         # Belt-and-braces: catch anything unexpected (missing bundled dep, PDF
@@ -165,18 +195,47 @@ class MainWindow(QMainWindow):
             )
             self._last_opened_pdf = self._pending_pdf
             self._last_opened_profile = self._pending_profile
-            self._pending_pdf = None
-            self._pending_profile = None
-            self._show_home()
+            # If we're working through an order, mark the corresponding item
+            # ✓ and return to the order view rather than home so the operator
+            # can pick the next item.
+            if self._current_order is not None and self._pending_profile is not None:
+                # Find which item this dispatch was for (matches by sku +
+                # not-yet-completed; first match wins).
+                for item in self._current_order.items:
+                    key = (self._current_order.order_number, item.item_id)
+                    if (
+                        item.sku == self._pending_profile.sku
+                        and key not in self._completed_items
+                    ):
+                        self._completed_items.add(key)
+                        self.order_view.mark_completed(item.item_id)
+                        break
+                self._pending_pdf = None
+                self._pending_profile = None
+                self._show_order()
+            else:
+                self._pending_pdf = None
+                self._pending_profile = None
+                self._show_home()
         else:
             QMessageBox.critical(self, "Send failed", result.error or "Unknown error")
 
+    def _on_preview_cancel(self) -> None:
+        """Cancel returns to the order view if we came from one, else home."""
+        self._pending_pdf = None
+        self._pending_profile = None
+        if self._current_order is not None:
+            self._show_order()
+        else:
+            self._show_home()
+
     def _should_offer_close_previous(self) -> bool:
-        """True iff there's a previously-dispatched PDF different from the
-        current one, AND LightBurn is still running with it."""
+        """True iff there's a previously-dispatched job AND LightBurn is
+        still running. The prompt fires for every send after the first,
+        including order items that share the same source PDF — each item
+        is a fresh customization that deserves a clean LightBurn workspace.
+        Operator can always pick 'No, keep open' to bypass."""
         if self._last_opened_pdf is None:
-            return False
-        if self._last_opened_pdf == self._pending_pdf:
             return False
         return self.deps.lightburn.is_running()
 
