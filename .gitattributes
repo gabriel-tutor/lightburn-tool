@@ -1,0 +1,8 @@
+# LightBurn project files are byte-stable golden artifacts — never let
+# core.autocrlf rewrite their line endings, or the build_lbrn2 golden test
+# fails on Windows checkouts (output is LF, CRLF-converted golden is not).
+*.lbrn2 text eol=lf
+
+# Generated/byte-stable test artifacts: keep LF.
+tests/golden/** text eol=lf
+*.pdf binary
