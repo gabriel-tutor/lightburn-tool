@@ -17,7 +17,6 @@ from pathlib import Path
 from lbb.app.job import Job, JobResult
 from lbb.core.errors import LbbError
 from lbb.ports.lightburn import LightBurnPort
-from lbb.ports.orders import OrderRepository
 from lbb.ports.pdf import PdfReader
 from lbb.ports.repository import ProfileRepository
 
@@ -28,7 +27,6 @@ class PipelineDeps:
     pdf: PdfReader
     lightburn: LightBurnPort
     temp_dir: Path  # vestigial under direct-open; kept for ABI compatibility
-    orders: OrderRepository | None = None  # opt-in; UI uses when present
 
 
 def run_pipeline(job: Job, deps: PipelineDeps) -> JobResult:
