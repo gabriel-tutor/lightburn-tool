@@ -14,6 +14,7 @@ from lbb.core.errors import LbbError
 from lbb.core.fulfillment import (
     FulfillmentOrder,
     OrderStatus,
+    Side,
     all_sides,
     derive_status,
     queue_sort_key,
@@ -153,6 +154,7 @@ class FulfillmentService:
             self.state.set_override(order_number, OrderStatus.HOLD)
         else:
             self.state.set_override(order_number, None)  # back to derived
+        # status is re-derived live (override + engraved state), not echoed from the input
         return {"ok": True, "status": str(self._status(o))}
 
     def ship_order(self, order_number: str) -> dict:
@@ -182,7 +184,7 @@ class FulfillmentService:
         return (len(done), len(total))
 
     @staticmethod
-    def _find_side(o: FulfillmentOrder, item_id: str, side_name: str):
+    def _find_side(o: FulfillmentOrder, item_id: str, side_name: str) -> Side | None:
         for p in o.products:
             if p.item_id == item_id:
                 for s in p.sides:

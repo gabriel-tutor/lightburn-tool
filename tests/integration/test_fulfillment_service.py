@@ -108,3 +108,14 @@ def test_label_path_returns_existing_file(svc, tmp_path):
     got = svc.label_path("306-1")
     assert got is not None and got.endswith("306-1.pdf")
     assert svc.label_path("306-2") is None  # 306-2 has no label
+
+
+def test_list_filters_open_and_shipped(svc):
+    # Ship 306-2 (single side) so it leaves the open queue.
+    svc.engrave_side("306-2", "A", "Front")
+    svc.ship_order("306-2")
+    open_nums = [c["order_number"] for c in svc.list_orders(filter="open", query="")]
+    shipped_nums = [c["order_number"] for c in svc.list_orders(filter="shipped", query="")]
+    assert "306-2" not in open_nums
+    assert open_nums == ["306-1"]
+    assert shipped_nums == ["306-2"]
