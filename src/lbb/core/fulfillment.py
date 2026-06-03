@@ -15,6 +15,7 @@ from enum import StrEnum
 from lbb.core.models import Sku
 
 _TYPE_ORDER = ("Bracelet", "Necklace", "Keychain", "Flask")
+_UNKNOWN_TYPE_RANK = len(_TYPE_ORDER) + 1  # unknown product types sort last
 
 
 class OrderStatus(StrEnum):
@@ -101,10 +102,11 @@ def derive_status(
 
 
 def type_rank(product_type: str) -> int:
+    """Position of product_type in the workshop queue; unknown types sort last."""
     try:
         return _TYPE_ORDER.index(product_type)
     except ValueError:
-        return 99
+        return _UNKNOWN_TYPE_RANK
 
 
 def queue_sort_key(order: FulfillmentOrder) -> tuple[int, str]:
