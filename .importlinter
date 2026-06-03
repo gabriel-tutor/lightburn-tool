@@ -8,7 +8,7 @@ source_modules =
     lbb.core
 forbidden_modules =
     lbb.adapters
-    lbb.ui
+    lbb.web
     lbb.app
 
 [importlinter:contract:web-isolation]
