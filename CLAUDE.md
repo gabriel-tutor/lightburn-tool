@@ -11,17 +11,17 @@ needing to read code.
 
 ```bash
 # Setup (first time on a fresh clone)
-uv sync --extra ui --dev
+uv sync --dev
 
-# Run the app from source
+# Run the app from source (opens the pywebview Fulfillment Studio window)
 uv run python -m lbb
 
 # Tests
 uv run pytest                                    # everything
 uv run pytest tests/integration/                 # one directory
-uv run pytest tests/ui/test_drop_zone.py -v      # one file
+uv run pytest tests/unit/adapters/ -v            # one directory
 uv run pytest tests/integration/test_pipeline.py::test_happy_path_loads_to_lightburn -v   # one test
-uv run pytest -k "extract_sku"                   # by name pattern
+uv run pytest -k "fulfillment"                   # by name pattern
 
 # Lint / architecture checks (both run on every commit via pre-commit)
 uv run ruff check                                # style + many bug-class lints
@@ -30,16 +30,11 @@ uv run lint-imports                              # architectural contract enforc
 
 # Build the distributable
 uv run pyinstaller packaging/lbb.spec --clean --noconfirm
-# → dist/LightBurn Bridge.app (macOS)
-# → dist/LightBurn Bridge/LightBurn Bridge.exe (Windows)
-# → dist/LightBurn Bridge/LightBurn Bridge   (Linux)
+# → dist\Fulfillment Studio\Fulfillment Studio.exe  (Windows)
 
 # Regenerate test artifacts after a deliberate template/builder change
 uv run python scripts/generate_fixtures.py       # PDF fixtures
 uv run python scripts/regenerate_goldens.py      # byte-stable .lbrn2 snapshots
-
-# Seed the user database with demo SKU profiles
-uv run python scripts/seed_demo.py               # writes ~/.lightburn-bridge/profiles.sqlite
 ```
 
 ## Architecture in one minute
@@ -50,35 +45,46 @@ Two `import-linter` contracts (`.importlinter`) enforce this on every commit:
 ```
 src/lbb/
 ├── core/        pure domain, NO I/O — frozen dataclasses, pure functions
-├── ports/       Protocol interfaces (LightBurnPort, ProfileRepository, PdfReader)
-├── adapters/    real I/O — LightBurnShellAdapter, SqliteProfileRepository, PdfiumReader
-├── app/         orchestration — run_pipeline(), PipelineDeps DI, container.py
-└── ui/          PySide6 (Qt) — widgets, views, theme; may NOT import adapters directly
+├── ports/       Protocol interfaces (LightBurnPort, FulfillmentRepository, FulfillmentStateStore, ...)
+├── adapters/    real I/O — LightBurnShellAdapter, JsonFulfillmentRepository, SqliteStateStore, PdfiumReader, ...
+├── app/         orchestration — FulfillmentService, container.py wiring
+└── web/         pywebview shell (shell.py) + JsApiBridge (bridge.py) + HTML/CSS/JS assets
 ```
 
-The data path for a single user action (drop PDF → engrave):
+The data path for the main operator action (dashboard → engrave a side):
 
 ```
-DropZone.pdf_dropped
-  → MainWindow._on_pdf_chosen
-    → extract_sku(filename)                  core/extractor.py
-    → repo.get(sku)                          ports/repository.py
-    → pdf.read_info(path) + run_preflight    ports/pdf.py + core/preflight.py
-    → pdf.render_thumbnail_png (via QImage)  adapters/pdfium_reader.py
-    → JobPreviewView.populate (preflight gates Send)
-       on Send →
-    → run_pipeline(Job, deps)                app/pipeline.py
-      → pdf.extract_paths                    adapters/pdfium_reader.py
-      → stroke colour → cut-layer mapping    core/palette.layer_index_for_color
-      → build_lbrn2(template, shapes)        core/template_builder.py
-      → write to temp dir
-      → lightburn.load_file(out_path)        adapters/lightburn_shell.py
-        → on macOS: `open -a "LightBurn"`
-        → on Windows: `cmd /c start "" file`
-        → on Linux: `xdg-open file`
+JS: window.pywebview.api.engrave_side(order_number, item_id, side_name)
+  → JsApiBridge.engrave_side(...)             web/bridge.py  (thin marshaller)
+    → FulfillmentService.engrave_side(...)     app/fulfillment_service.py
+      → repo.get(order_number)                ports/fulfillment.py / adapters/json_fulfillment.py
+      → lightburn.load_file(side.pdf_path)    adapters/lightburn_shell.py
+          → on macOS: `open -a "LightBurn"`
+          → on Windows: `cmd /c start "" file`
+          → on Linux: `xdg-open file`
+      → state.mark_side(order_number, item_id, side_name, True)
+          → persisted in state.sqlite          adapters/sqlite_state.py
+      → returns {ok, status, progress} → JS updates the UI
 ```
 
 ## Non-obvious things that bite if you don't know them
+
+- **Data directory is `~/.flanacom-tool/`** (Windows: `%USERPROFILE%\.flanacom-tool\`).
+  On first launch, if `orders/` doesn't exist, `JsonFulfillmentRepository` seeds it by
+  copying `src/lbb/web/assets/seed-orders/` (orders.json + design PDFs + label PDFs)
+  into `~/.flanacom-tool/orders/`. Operator progress (engraved sides, status overrides,
+  comments) is stored in `~/.flanacom-tool/state.sqlite` via `SqliteStateStore` — progress
+  persists across restarts.
+
+- **The web UI calls Python via `window.pywebview.api`.** Every JS call goes through
+  `JsApiBridge` (`web/bridge.py`), which is registered as the `js_api` object when the
+  pywebview window is created. `JsApiBridge` is a thin marshaller — no business logic.
+  All logic lives in `FulfillmentService` (`app/fulfillment_service.py`).
+
+- **PySide6 is NOT the UI.** The UI is a pywebview window (Edge WebView2 on Windows).
+  PySide6 remains a dependency **only** because `adapters/pdfium_reader.py` uses `QImage`
+  for PNG encoding of PDF thumbnails in the old pipeline path. The `ui/` Python source
+  files were deleted; only `__pycache__` remains. Do not add new code to `ui/`.
 
 - **`.lbrn2` schema is reverse-engineered.** Community-documented at
   nuCarve and forum.lightburnsoftware.com. We never assume anything we
@@ -104,29 +110,13 @@ DropZone.pdf_dropped
   reach for UDP, read git log for `f98205b`, `34b8325`, `5cea30f`.
 
 - **Operator-assisted only.** We **never send `START`** to LightBurn.
-  The pipeline ends at "file loaded; operator presses Start
-  physically." This is a deliberate safety boundary — see
-  HANDOFF.md §4.5.
-
-- **PIL is excluded from production.** `PdfiumReader.render_thumbnail_png`
-  uses `QImage` + `QBuffer`, not Pillow. PIL's vendored zlib conflicted
-  with PyInstaller's bundled zlib (three copies of `libz.dylib` in the
-  same bundle); see commit `f98205b`. Pillow is still installed in dev
-  transitively via `fpdf2` but is dormant in the production path.
+  The engrave flow ends at "PDF loaded in LightBurn; operator presses Start
+  physically." This is a deliberate safety boundary — see HANDOFF.md §4.5.
 
 - **Pre-commit auto-formats and may bounce commits.** `ruff-format` is
   in `.pre-commit-config.yaml`. If a commit fails because "files were
   modified by this hook," that's ruff reformatting — re-`git add` the
   modified files and re-commit. Don't `--no-verify`.
-
-- **macOS Launch Services caches Info.plist by bundle ID.** After
-  rebuilding the `.app`, drag-drop from Finder may fail until you run
-  `lsregister -f` (see HANDOFF.md §7).
-
-- **Adapter `pdfium_reader.py` imports PySide6.** That's intentional
-  (we use `QImage` for PNG encoding) and not a contract violation —
-  import-linter only forbids `core/`→`adapters/` and `ui/`→`adapters/`.
-  Adapters can depend on anything they need.
 
 - **Template fixture is synthesized, not LightBurn-authored.**
   `templates/wallet-small.lbrn2` was hand-built from community schema
@@ -138,12 +128,13 @@ DropZone.pdf_dropped
 ## Testing layout
 
 - `tests/unit/core/` — pure-function tests, microsecond-fast, no I/O
-- `tests/unit/adapters/` — real I/O against tmp_path / mocked subprocess
+- `tests/unit/adapters/` — real I/O against tmp_path / mocked subprocess (includes fulfillment adapter + state store tests)
 - `tests/integration/` — full pipeline end-to-end with real PDF fixtures
   + the real `.lbrn2` template + a `LightBurnFake` (in-memory test double)
-- `tests/ui/` — pytest-qt tests; need `--extra ui` synced to install Qt
 - `tests/golden/` — byte-stable `.lbrn2` snapshots for schema-drift detection
 - `tests/fixtures/` — input PDFs + helper conftest
+
+126 tests, 4 skipped (all pass with `uv run pytest`). The old `tests/ui/` pytest-qt tests were retired with the PySide6 UI.
 
 ## When the user asks to add a feature
 
@@ -159,7 +150,7 @@ The expected flow on a feature task:
 
 ## Where to ask further questions
 
-- **Operating questions** (how does the app behave?) → HANDOFF.md §3
+- **Operating questions** (how does the app behave day-to-day?) → HANDOFF.md §3
 - **Setup questions** (Windows build, prereqs) → HANDOFF.md §2 + docs/build-windows.md
 - **Design rationale** (why hexagonal? why these specific tests?) →
   docs/plans/2026-05-16-lightburn-bridge-design.md
