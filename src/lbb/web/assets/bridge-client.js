@@ -9,12 +9,12 @@ const API = (() => {
     return Promise.resolve(MOCK[name] ? MOCK[name](...args) : null);
   };
   const MOCK = {
-    list_orders: () => [],
+    list_orders: () => ({ orders: [], error: null }),
     get_order: () => null,
-    engrave_side: () => ({ ok: true, status: "engraving", progress: { done: 1, total: 1 } }),
+    engrave_side: () => ({ ok: true, status: "not_done_yet", progress: { done: 1, total: 1 } }),
     set_status: (_o, s) => ({ ok: true, status: s }),
     ship_order: () => ({ ok: true }),
-    add_comment: () => ({ ok: true }),
+    flag_revision: () => ({ ok: true }),
     open_amazon: () => ({ ok: true }),
     open_instructions: () => ({ ok: true }),
     open_label: () => ({ ok: true }),
@@ -27,7 +27,7 @@ const API = (() => {
     engraveSide: wrap("engrave_side"),
     setStatus: wrap("set_status"),
     shipOrder: wrap("ship_order"),
-    addComment: wrap("add_comment"),
+    flagRevision: wrap("flag_revision"),
     openAmazon: wrap("open_amazon"),
     openInstructions: wrap("open_instructions"),
     openLabel: wrap("open_label"),

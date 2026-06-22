@@ -241,3 +241,15 @@
   .toast.show{transform:translateY(0);opacity:1}
   .toast svg{width:16px;height:16px;color:#7fe0a8} .toast.gold svg{color:#f2c970}
   [hidden]{display:none!important}
+
+/* live-API states */
+.stat.not_done_yet .d{background:#9aa1ab}
+.stat.graviert_verschickt .d{background:#2e9e5b}
+.stat.revision .d{background:#e08a1e}
+.stat.graviert_verschickt{color:#2e9e5b}
+.stat.revision{color:#e08a1e}
+.instruction{background:#f7f4ee;border:1px solid #ece6da;border-radius:10px;padding:10px 12px;color:#4a4640;font-size:14px;min-height:20px;white-space:pre-wrap}
+.btn.warn{color:#a85b00;border-color:#e6b877}
+.btn.ghost{background:transparent}
+.api-banner{position:sticky;top:0;z-index:50;background:#fff4e5;color:#7a4b00;border-bottom:1px solid #f0d6a8;padding:8px 16px;font-size:14px}
+.api-banner[hidden]{display:none}

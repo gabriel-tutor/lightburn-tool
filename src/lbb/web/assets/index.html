@@ -23,6 +23,7 @@
     <div class="dash-head">
       <h1>Orders</h1>
       <span class="sub" id="dashSub"></span>
+      <button class="btn ghost" id="refreshBtn" onclick="loadDashboard()" title="Reload orders from Flanacom"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>Refresh</button>
       <button class="cta primary" style="margin-left:auto" onclick="startEngraving()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><circle cx="11" cy="11" r="2"/></svg>
         Start engraving
@@ -130,18 +131,16 @@
             <label class="field-lbl" for="statusSel">Production status</label>
             <div class="select">
               <select id="statusSel" onchange="onStatusSelect(this.value)">
-                <option value="received">Received</option>
-                <option value="engraving">Engraving in progress</option>
-                <option value="engraved">All engraved</option>
-                <option value="shipped">Engraved &amp; shipped</option>
-                <option value="hold">On hold / issue</option>
+                <option value="not_done_yet">Open · not engraved</option>
+                <option value="revision">Needs review / rework</option>
+                <option value="graviert_verschickt">Engraved &amp; shipped</option>
               </select>
               <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
             </div>
-            <label class="field-lbl" for="comment" style="margin-top:18px">Comment to operator</label>
-            <textarea id="comment" placeholder="Note back to the operator — e.g. re-engrave back side, wrong artwork, font too small…"></textarea>
-            <div class="row-end"><button class="btn" onclick="sendComment()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>Send to operator</button></div>
-            <div class="hint">Assigned operator: <b>A. Fink</b> · last update <span id="lastUpd">just now</span></div>
+            <label class="field-lbl" style="margin-top:18px">Instruction from Flanacom</label>
+            <div id="instruction" class="instruction">—</div>
+            <div class="row-end"><button class="btn warn" onclick="flagRevision()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>Flag for revision</button></div>
+            <div class="hint">Status is written back to Flanacom's system.</div>
           </div>
         </div>
       </div>

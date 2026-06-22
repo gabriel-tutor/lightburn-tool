@@ -36,8 +36,8 @@ function allEng(o){return totOf(o)>0 && doneOf(o)===totOf(o);}
 
 // statusOf works on CURRENT (detail object) — reads .status string from backend.
 function statusOf(o){
-  const key = o.status || 'received';
-  const labels = {shipped:'Shipped', hold:'On hold', engraved:'Engraved', engraving:'Engraving', received:'Received'};
+  const key = o.status || 'not_done_yet';
+  const labels = {not_done_yet:'Open', graviert_verschickt:'Engraved & shipped', revision:'Needs review'};
   return {key, label: labels[key] || key};
 }
 
@@ -47,8 +47,19 @@ function plural(t){ return ({Bracelet:'Bracelets',Necklace:'Necklaces',Keychain:
 async function loadDashboard(){
   const filter = document.querySelector('#filterChips .chip.active')?.dataset.f || 'all';
   const q = document.getElementById('searchInput').value || '';
-  ORDERS = await API.listOrders(filter, q);
+  const res = await API.listOrders(filter, q);
+  ORDERS = (res && res.orders) || [];
+  renderBanner(res && res.error);
   renderDashboard();
+}
+function renderBanner(error){
+  let bar = document.getElementById('apiBanner');
+  if(!bar){
+    bar = document.createElement('div'); bar.id='apiBanner'; bar.className='api-banner';
+    document.body.prepend(bar);
+  }
+  if(error){ bar.textContent = '⚠ '+error+' — check the API key in ~/.flanacom-tool/config.json'; bar.hidden=false; }
+  else { bar.hidden = true; }
 }
 
 /* ===== views ===== */
@@ -73,8 +84,8 @@ function renderDashboard(){
         html+='<div class="lgroup">'+plural(b)+' <span class="gc">'+cnt+'</span></div>';
         lastBucket=b;
       }
-      const stKey = card.status || 'received';
-      const stLabels = {shipped:'Shipped',hold:'On hold',engraved:'Engraved',engraving:'Engraving',received:'Received'};
+      const stKey = card.status || 'not_done_yet';
+      const stLabels = {not_done_yet:'Open',graviert_verschickt:'Engraved & shipped',revision:'Needs review'};
       const stLabel = stLabels[stKey] || stKey;
       html+='<button class="lrow" onclick="openOrder(\''+card.order_number+'\')">'
         +'<div class="ono">'+card.order_number+'</div>'
@@ -100,8 +111,7 @@ async function openOrder(orderNumber){
 }
 
 async function startEngraving(){
-  // Find first open (non-shipped, non-hold) order from dashboard cards
-  const first = ORDERS.find(c => c.status !== 'shipped' && c.status !== 'hold');
+  const first = ORDERS.find(c => c.status !== 'graviert_verschickt');
   if(first){ await openOrder(first.order_number); toast('Starting with '+first.order_number); }
   else toast('No open orders to engrave','gold');
 }
@@ -119,13 +129,8 @@ function renderOrder(){
   if(hasAmazon){ amLink.onclick = function(e){ e.preventDefault(); API.openAmazon(O.amazon_url); }; }
 
   // Label
-  if(O.label){
-    document.getElementById('labelCarrier').textContent=O.label.carrier||'';
-    document.getElementById('labelFile').textContent=O.label.has_pdf?'label.pdf':'(no label file)';
-  } else {
-    document.getElementById('labelCarrier').textContent='—';
-    document.getElementById('labelFile').textContent='—';
-  }
+  document.getElementById('labelCarrier').textContent = O.has_label ? 'Shipping label' : '—';
+  document.getElementById('labelFile').textContent = O.has_label ? 'label.pdf' : '(no label file)';
 
   document.getElementById('giftPill').innerHTML = O.gift_box ? '<span class="pill gift"><span class="gi">'+GIFT_SVG+'</span>With gift box</span>' : '';
 
@@ -158,7 +163,7 @@ function renderOrder(){
    +'<div class="k">Order date</div><div class="v">'+(O.placed_label||'')+'</div>'
    +'<div class="k">Link to Order</div><div class="v">'+(hasAmazon?'<a href="#" onclick="API.openAmazon(CURRENT.amazon_url);return false;">Open on Amazon ↗</a>':'<span style="color:var(--ink-faint)">—</span>')+'</div>'
    +'<div class="k">Gift box</div><div class="v">'+(O.gift_box?'<span class="badge gift">'+GIFT_SVG+' With gift box</span>':'<span style="color:var(--ink-faint)">No</span>')+'</div>'
-   +'<div class="k">Recipient</div><div class="v">'+(O.recipient?O.recipient.name+(O.recipient.address?' · '+O.recipient.address:''):'')+'</div>';
+   +'<div class="k">Items</div><div class="v">'+(O.amount||O.products.length)+'</div>';
 
   const colorClass = p.color==='Silver' ? 'badge silver' : 'badge';
   document.getElementById('prodSubh').innerHTML='Product '+(active+1)+' of '+O.products.length+' <span class="c">'+p.product_type+'</span>';
@@ -180,7 +185,7 @@ function renderOrder(){
   stepEng.classList.remove('done','active'); stepShip.classList.remove('done','active');
   const done=doneOf(O), tot=totOf(O);
   document.getElementById('bar1').style.width=(done/Math.max(tot,1)*100)+'%';
-  const isShipped = O.status==='shipped';
+  const isShipped = O.status==='graviert_verschickt';
   const isAllEng = allEng(O);
   if(isShipped){ stepEng.classList.add('done'); stepShip.classList.add('done'); document.getElementById('bar2').style.width='100%'; document.getElementById('engSub').textContent='Done'; document.getElementById('shipSub').textContent='Done'; }
   else if(isAllEng){ stepEng.classList.add('done'); stepShip.classList.add('active'); document.getElementById('bar2').style.width='0%'; document.getElementById('engSub').textContent='Done'; document.getElementById('shipSub').textContent='Pending'; }
@@ -189,12 +194,14 @@ function renderOrder(){
   const pill=document.getElementById('livePill'), pillTxt=document.getElementById('livePillText'), sel=document.getElementById('statusSel');
   pill.classList.remove('hold');
   const st=statusOf(O);
-  if(st.key==='hold'){ pill.classList.add('hold'); pillTxt.textContent='On hold'; }
-  else if(st.key==='shipped'){ pillTxt.textContent='Engraved & shipped'; }
-  else if(st.key==='engraved'){ pillTxt.textContent='Engraved · ready to ship'; }
-  else if(st.key==='engraving'){ pillTxt.textContent='Engraving in progress'; }
-  else { pillTxt.textContent='In production'; }
+  if(st.key==='revision'){ pill.classList.add('hold'); pillTxt.textContent='Needs review'; }
+  else if(st.key==='graviert_verschickt'){ pillTxt.textContent='Engraved & shipped'; }
+  else if(isAllEng){ pillTxt.textContent='Engraved · ready to ship'; }
+  else if(done>0){ pillTxt.textContent='Engraving in progress'; }
+  else { pillTxt.textContent='Open · ready to engrave'; }
   sel.value=st.key;
+  const instrBox=document.getElementById('instruction');
+  if(instrBox){ instrBox.textContent = O.instruction || '—'; }
 
   const np=tasksOf(O).find(t=>!t.s.engraved);
   const engBtn=document.getElementById('engraveBtn'), engLbl=document.getElementById('engraveBtnLbl'), shipBtn=document.getElementById('shipBtn');
@@ -204,11 +211,6 @@ function renderOrder(){
   else if(np){ document.getElementById('abLead').textContent='Next:'; document.getElementById('abState').innerHTML='Product '+(np.pi+1)+' · <b>'+np.s.name+'</b>'; engLbl.textContent='Engrave '+np.s.name.toLowerCase()+' · LightBurn'; engBtn.disabled=busy; shipBtn.disabled=true; }
   else { document.getElementById('abLead').textContent='Next:'; document.getElementById('abState').textContent='All engraved — ready to ship'; engLbl.textContent='All sides engraved'; engBtn.disabled=true; shipBtn.disabled=false; }
 
-  // Render comments
-  const commentsEl = document.getElementById('lastUpd');
-  if(commentsEl && O.comments && O.comments.length){
-    commentsEl.textContent = O.comments[O.comments.length-1].created_at || 'just now';
-  }
 }
 
 /* ===== actions ===== */
@@ -220,7 +222,7 @@ async function engrave(pi, si){
   if(active!==pi){ active=pi; }
   busy=true; renderOrder();
   document.getElementById('livePillText').textContent='Opening LightBurn…';
-  const res = await API.engraveSide(CURRENT.order_number, p.item_id, side.name);
+  const res = await API.engraveSide(CURRENT.order_number, side.file_key);
   busy=false;
   if(!res || !res.ok){ toast((res && res.error) || 'Engrave failed','gold'); renderOrder(); return; }
   CURRENT = await API.getOrder(CURRENT.order_number);
@@ -228,7 +230,6 @@ async function engrave(pi, si){
   const np = tasksOf(CURRENT).find(t=>!t.s.engraved); if(np) active=np.pi;
   renderOrder();
   toast(side.name+' engraved'+(allEng(CURRENT)?' · all done':''));
-  setLastUpd();
 }
 
 async function engraveNext(){
@@ -252,16 +253,15 @@ async function confirmShip(){
   closeModal();
   if(!res || !res.ok){ toast((res && res.error)||'Cannot ship','gold'); return; }
   toast('"'+orderNumber+'" shipped');
-  // Reload dashboard and find next open order
   await loadDashboard();
-  const first = ORDERS.find(c => c.status !== 'shipped' && c.status !== 'hold');
+  const first = ORDERS.find(c => c.status !== 'graviert_verschickt');
   if(first){ await openOrder(first.order_number); }
   else { goDashboard(); toast('All open orders done!'); }
 }
 
 async function onStatusSelect(v){
   if(busy){ renderOrder(); return; }
-  if(v==='shipped'){
+  if(v==='graviert_verschickt'){
     if(allEng(CURRENT)) askShip();
     else toast('Engrave all sides first','gold');
     renderOrder(); return;
@@ -271,21 +271,16 @@ async function onStatusSelect(v){
   CURRENT = await API.getOrder(CURRENT.order_number);
   if(!CURRENT){ toast('Could not refresh order','gold'); goDashboard(); return; }
   renderOrder();
-  if(v==='hold') toast('Order put on hold','gold');
+  if(v==='revision') toast('Flagged for revision','gold');
 }
 
-async function sendComment(){
-  const c=document.getElementById('comment');
-  if(!c.value.trim()){ toast('Write a comment first','gold'); return; }
-  const text = c.value.trim();
-  const res = await API.addComment(CURRENT.order_number, text);
-  if(!res || !res.ok){ toast((res && res.error)||'Could not send comment','gold'); return; }
+async function flagRevision(){
+  if(!CURRENT) return;
+  const res = await API.flagRevision(CURRENT.order_number);
+  if(!res || !res.ok){ toast((res && res.error)||'Could not flag','gold'); return; }
   CURRENT = await API.getOrder(CURRENT.order_number);
-  if(!CURRENT){ toast('Could not refresh order','gold'); goDashboard(); return; }
-  c.value='';
-  toast('Comment sent to A. Fink');
-  setLastUpd();
   renderOrder();
+  toast('Order flagged for revision','gold');
 }
 
 function copyOrder(){ navigator.clipboard?.writeText(CURRENT.order_number); toast('Order number copied'); }
