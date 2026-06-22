@@ -213,3 +213,5 @@ def test_get_order_includes_metadata_and_sides_summary(tmp_path):
     assert p["special_length"] is True and p["length"] == "50cm"
     assert p["sides_summary"] == "2 coins · Front & Back each — 4 jobs"
     assert p["has_image"] is True
+    assert p["coin_count"] == 2
+    assert d["has_order_picture"] is False

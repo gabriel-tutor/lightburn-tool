@@ -29,14 +29,12 @@ _IMAGE_MIME = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
                ".webp": "image/webp", ".gif": "image/gif"}
 
 
-def _placed_label(o: FulfillmentOrder) -> str:
-    if not o.placed_at:
-        return ""
-    return f"{o.placed_at:%b} {o.placed_at.day}, {o.placed_at:%Y}"
-
-
 def _date_label(dt) -> str:
     return f"{dt:%b} {dt.day}, {dt:%Y}" if dt else ""
+
+
+def _placed_label(o: FulfillmentOrder) -> str:
+    return _date_label(o.placed_at)
 
 
 class FulfillmentService:
