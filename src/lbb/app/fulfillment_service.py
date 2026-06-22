@@ -8,6 +8,7 @@ view models for the web bridge. Knows nothing about pywebview or HTTP.
 
 from __future__ import annotations
 
+import base64
 from pathlib import Path
 
 from lbb.core.errors import LbbError
@@ -23,6 +24,8 @@ from lbb.ports.lightburn import LightBurnPort
 
 _BUCKETS = {"Bracelet": "Bracelets", "Necklace": "Necklaces", "Keychain": "Keychains",
             "Flask": "Flasks", "MiniFlask": "Mini flasks", "Lighter": "Lighters"}
+_IMAGE_MIME = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+               ".webp": "image/webp", ".gif": "image/gif"}
 
 
 def _placed_label(o: FulfillmentOrder) -> str:
@@ -120,6 +123,24 @@ class FulfillmentService:
             return self.gateway.download_file(o.order_id, o.label_key, self._dir(o))
         except EngravingApiError:
             return None
+
+    def product_image(self, order_number: str, product_index: int) -> dict:
+        o = self.gateway.get(order_number)
+        if o is None:
+            return {"ok": False, "error": "Order not found"}
+        try:
+            p = o.products[int(product_index)]
+        except (IndexError, ValueError, TypeError):
+            return {"ok": False, "error": "Unknown product"}
+        if not p.image_key:
+            return {"ok": False}
+        try:
+            path = self.gateway.download_file(o.order_id, p.image_key, self._dir(o))
+        except EngravingApiError as e:
+            return {"ok": False, "error": str(e)}
+        mime = _IMAGE_MIME.get(Path(p.image_key).suffix.lower(), "application/octet-stream")
+        b64 = base64.b64encode(path.read_bytes()).decode("ascii")
+        return {"ok": True, "data_uri": f"data:{mime};base64,{b64}"}
 
     # ── commands ──────────────────────────────────────────────────────────
     def engrave_side(self, order_number: str, file_key: str) -> dict:

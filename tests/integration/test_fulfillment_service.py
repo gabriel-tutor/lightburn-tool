@@ -147,3 +147,37 @@ def test_list_orders_reports_gateway_error(tmp_path):
     res = svc.list_orders()
     assert res["orders"] == []
     assert "rejected" in res["error"]
+
+
+def _order_with_image():
+    return FulfillmentOrder(
+        order_id="uuid-img", order_number="306-IMG", amount=1,
+        products=(Product(product_type="Necklace", coin_color="Silver",
+                          image_key="product_picture/ref.png",
+                          sides=(Side("Front", "engraving/f.pdf"),)),),
+    )
+
+
+def test_product_image_returns_data_uri(tmp_path):
+    gw = FakeGateway([_order_with_image()])
+    svc = FulfillmentService(gateway=gw, state=MemState(),
+                             lightburn=FakeLightBurn(), cache_dir=tmp_path)
+    res = svc.product_image("306-IMG", 0)
+    assert res["ok"] is True
+    assert res["data_uri"].startswith("data:image/png;base64,")
+    assert gw.downloads == [("uuid-img", "product_picture/ref.png")]
+
+
+def test_product_image_no_image_key(tmp_path):
+    # default _order() product has no image_key
+    gw = FakeGateway([_order()])
+    svc = FulfillmentService(gateway=gw, state=MemState(),
+                             lightburn=FakeLightBurn(), cache_dir=tmp_path)
+    assert svc.product_image("306-1", 0)["ok"] is False
+
+
+def test_product_image_unknown_product(tmp_path):
+    gw = FakeGateway([_order_with_image()])
+    svc = FulfillmentService(gateway=gw, state=MemState(),
+                             lightburn=FakeLightBurn(), cache_dir=tmp_path)
+    assert svc.product_image("306-IMG", 9)["ok"] is False
