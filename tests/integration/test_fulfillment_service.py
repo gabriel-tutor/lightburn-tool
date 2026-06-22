@@ -3,6 +3,7 @@ from pathlib import Path
 
 from lbb.app.fulfillment_service import FulfillmentService
 from lbb.core.fulfillment import FulfillmentOrder, OrderStatus, Product, Side
+from lbb.ports.engraving import EngravingApiError
 
 
 def _order(status=OrderStatus.NOT_DONE):
@@ -140,7 +141,6 @@ def test_get_order_marks_engraved_sides(tmp_path):
 def test_list_orders_reports_gateway_error(tmp_path):
     class Boom:
         def list_orders(self):
-            from lbb.ports.engraving import EngravingApiError
             raise EngravingApiError("API key rejected", status_code=401)
     svc = FulfillmentService(gateway=Boom(), state=MemState(),
                              lightburn=FakeLightBurn(), cache_dir=tmp_path)

@@ -5,10 +5,11 @@ goes through build_pipeline_deps() so the wiring lives in exactly one file.
 """
 
 from dataclasses import dataclass
-from importlib.resources import files
 from pathlib import Path
 
-from lbb.adapters.json_fulfillment import JsonFulfillmentRepository
+from lbb.adapters.config import ApiConfig
+from lbb.adapters.engraving_api import EngravingApiClient
+from lbb.adapters.http_urllib import UrllibTransport
 from lbb.adapters.lightburn_shell import LightBurnShellAdapter
 from lbb.adapters.pdfium_reader import PdfiumReader
 from lbb.adapters.sqlite_repo import SqliteProfileRepository
@@ -49,11 +50,13 @@ def build_pipeline_deps(paths: AppPaths) -> PipelineDeps:
     )
 
 
-def build_fulfillment_service(orders_dir: Path, state_db: Path) -> FulfillmentService:
-    seed_dir = Path(str(files("lbb.web.assets") / "seed-orders"))
-    repo = JsonFulfillmentRepository(orders_dir, seed_dir=seed_dir)
+def build_fulfillment_service(
+    config: ApiConfig, state_db: Path, cache_dir: Path
+) -> FulfillmentService:
+    gateway = EngravingApiClient(config.base_url, config.api_key, UrllibTransport())
     return FulfillmentService(
-        repo=repo,
+        gateway=gateway,
         state=SqliteStateStore(state_db),
         lightburn=LightBurnShellAdapter(),
+        cache_dir=cache_dir,
     )

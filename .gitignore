@@ -32,3 +32,8 @@ Thumbs.db
 # Local runtime secrets — never commit the real key
 config.json
 .flanacom-tool/
+
+# Stray local artifacts (never part of the repo)
+/dist2/
+/*.pdf
+/doc-dump*.txt
