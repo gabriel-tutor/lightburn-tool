@@ -167,3 +167,36 @@ def test_set_status_invalidates_cache():
     c.set_status("uuid-1", OrderStatus.REVISION)
     c.get("306-0804157-6173963")    # cache invalidated -> must re-GET
     assert t.get_count == 2
+
+
+def test_parse_captures_order_metadata():
+    raw = json.loads(json.dumps(ORDER))
+    raw["link_to_graphic"] = "https://graphic/x"
+    raw["product_picture_path"] = "product_picture/order.png"
+    raw["product_type"] = "bracelet"
+    raw["color"] = "Gold"
+    t = FakeTransport([raw])
+    [o] = _client(t).list_orders()
+    assert o.link_to_graphic == "https://graphic/x"
+    assert o.order_picture_key == "product_picture/order.png"
+    assert o.type_summary == "Bracelet"
+    assert o.color_summary == "Gold"
+    assert o.created_at is not None and o.updated_at is not None
+
+
+def test_parse_tolerates_missing_metadata():
+    raw = json.loads(json.dumps(ORDER))
+    for k in ("link_to_graphic", "product_picture_path", "product_type", "color"):
+        raw.pop(k, None)
+    t = FakeTransport([raw])
+    [o] = _client(t).list_orders()
+    assert o.link_to_graphic == "" and o.order_picture_key == ""
+    assert o.type_summary == "" and o.color_summary == ""
+
+
+def test_parse_sets_coin_count():
+    raw = json.loads(json.dumps(ORDER))
+    raw["products"][0]["coins"] = [{"front": "f1", "back": "b1"}, {"front": "f2", "back": "b2"}]
+    t = FakeTransport([raw])
+    [o] = _client(t).list_orders()
+    assert o.products[0].coin_count == 2

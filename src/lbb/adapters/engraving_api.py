@@ -139,6 +139,12 @@ def _parse_order(raw: dict) -> FulfillmentOrder:
         amazon_url=str(raw.get("link_to_order") or ""),
         label_key=str(raw.get("shipping_label_path") or ""),
         placed_at=_parse_date(raw.get("order_date")),
+        link_to_graphic=str(raw.get("link_to_graphic") or ""),
+        created_at=_parse_date(raw.get("created_at")),
+        updated_at=_parse_date(raw.get("updated_at")),
+        order_picture_key=str(raw.get("product_picture_path") or ""),
+        type_summary=normalize_type(str(raw["product_type"])) if raw.get("product_type") else "",
+        color_summary=str(raw.get("color") or ""),
     )
 
 
@@ -158,6 +164,7 @@ def _parse_product(raw: dict) -> Product:
         band_color=str(raw.get("color_band_chain") or ""),
         coin_color=str(raw.get("color_coin_plate") or ""),
         sides=tuple(sides),
+        coin_count=len(coins),
         image_key=str(raw.get("image") or ""),
         multiple_coins=bool(raw.get("multiple_coins")),
         special_length=bool(raw.get("special_length")),
