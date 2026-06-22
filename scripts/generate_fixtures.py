@@ -123,110 +123,6 @@ def make_wallet_showcase() -> Path:
     return out
 
 
-def _make_engraving_pdf(
-    out_path: Path, width_mm: float, height_mm: float, decoration: str
-) -> Path:
-    """Small engraving-mock PDF: black cut outline + a per-item vector
-    decoration. Vector-only (no fonts / no `pdf.text`) so LightBurn's
-    importer picks everything up — and so the design PDF carries the
-    shape only, not the customization text (which is typed into LightBurn
-    based on the order's customization field at engrave time).
-    """
-    pdf = _new_pdf(width_mm, height_mm)
-    pdf.set_draw_color(0, 0, 0)
-    pdf.set_line_width(0.5)
-    pdf.rect(2, 2, width_mm - 4, height_mm - 4)  # black cut outline
-
-    cx, cy = width_mm / 2, height_mm / 2
-    pdf.set_draw_color(0, 0, 255)
-    pdf.set_line_width(0.4)
-
-    if decoration == "circle":
-        r = min(width_mm, height_mm) / 8
-        pdf.ellipse(cx - r, cy - r, r * 2, r * 2)
-    elif decoration == "triangle":
-        side = min(width_mm, height_mm) / 4
-        h = side * 0.866
-        pdf.line(cx, cy - h / 2, cx - side / 2, cy + h / 2)
-        pdf.line(cx - side / 2, cy + h / 2, cx + side / 2, cy + h / 2)
-        pdf.line(cx + side / 2, cy + h / 2, cx, cy - h / 2)
-    elif decoration == "diamond":
-        d = min(width_mm, height_mm) / 5
-        pdf.line(cx, cy - d, cx + d, cy)
-        pdf.line(cx + d, cy, cx, cy + d)
-        pdf.line(cx, cy + d, cx - d, cy)
-        pdf.line(cx - d, cy, cx, cy - d)
-    elif decoration == "three_bars":
-        bar_h = min(width_mm, height_mm) / 3
-        spacing = min(width_mm, height_mm) / 8
-        for x in (cx - spacing, cx, cx + spacing):
-            pdf.line(x, cy - bar_h / 2, x, cy + bar_h / 2)
-
-    pdf.output(str(out_path))
-    return out_path
-
-
-def make_seed_orders() -> list[Path]:
-    """Generate one PDF per side referenced in src/lbb/web/assets/seed-orders/orders.json.
-
-    Filenames match the pdf_path values in that JSON exactly so the web UI can
-    resolve them without any path translation.
-    """
-    seed_dir = REPO_ROOT / "src" / "lbb" / "web" / "assets" / "seed-orders"
-    seed_dir.mkdir(parents=True, exist_ok=True)
-    written: list[Path] = []
-    items = [
-        # name,                                  width,  height, decoration
-        ("306-2309613-0964321-A-Front.pdf", 40.0, 60.0, "diamond"),
-        ("306-2309613-0964321-A-Back.pdf",  40.0, 60.0, "three_bars"),
-        ("306-2309613-0964321-B-Front.pdf", 50.0, 20.0, "circle"),
-        ("304-9988776-1122334-A-Front.pdf", 50.0, 30.0, "triangle"),
-    ]
-    for name, w, h, deco in items:
-        written.append(_make_engraving_pdf(seed_dir / name, w, h, deco))
-    return written
-
-
-def make_seed_labels() -> list[Path]:
-    """Generate one label PDF per order into seed-orders/labels/.
-
-    Filenames match the label.pdf_path values in orders.json. PDFs are
-    vector-only (no text/fonts) so bytes stay deterministic across runs.
-    """
-    seed_dir = REPO_ROOT / "src" / "lbb" / "web" / "assets" / "seed-orders"
-    labels_dir = seed_dir / "labels"
-    labels_dir.mkdir(parents=True, exist_ok=True)
-    written: list[Path] = []
-    orders = [
-        "306-2309613-0964321",
-        "304-9988776-1122334",
-    ]
-    for order_number in orders:
-        pdf = _new_pdf(100.0, 60.0)
-
-        # Filled "barcode" background bar
-        pdf.set_fill_color(0, 0, 0)
-        pdf.rect(5, 10, 90, 18, style="F")
-
-        # Thin vertical lines to suggest barcode stripes (vector-only)
-        pdf.set_draw_color(255, 255, 255)
-        pdf.set_line_width(0.3)
-        for i in range(30):
-            x = 7 + i * 2.8
-            pdf.line(x, 10, x, 28)
-
-        # Two decorative border rectangles (carrier / recipient zones)
-        pdf.set_draw_color(0, 0, 0)
-        pdf.set_line_width(0.4)
-        pdf.rect(5, 32, 90, 10)   # carrier zone outline
-        pdf.rect(5, 44, 90, 12)   # recipient zone outline
-
-        out = labels_dir / f"{order_number}.pdf"
-        pdf.output(str(out))
-        written.append(out)
-    return written
-
-
 def make_curve_test() -> Path:
     """50×50mm canvas with one black-stroke ellipse. Used by Bezier-flatten tests
     — fpdf2's ellipse() emits the shape as four cubic Bezier curves, exactly the
@@ -245,12 +141,6 @@ def main() -> None:
     written: list[Path] = []
     for fn in (make_sample_vector, make_wallet_demo, make_wallet_showcase, make_curve_test):
         path = fn()
-        written.append(path)
-        print(f"  ✓ {path.relative_to(REPO_ROOT)} ({path.stat().st_size} bytes)")
-    for path in make_seed_orders():
-        written.append(path)
-        print(f"  ✓ {path.relative_to(REPO_ROOT)} ({path.stat().st_size} bytes)")
-    for path in make_seed_labels():
         written.append(path)
         print(f"  ✓ {path.relative_to(REPO_ROOT)} ({path.stat().st_size} bytes)")
     print(f"\nWrote {len(written)} fixture(s) to {OUT_DIR.relative_to(REPO_ROOT)}/")
