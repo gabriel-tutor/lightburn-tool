@@ -8,8 +8,13 @@ A desktop app for engraving Flanacom's Amazon jewelry orders. It pulls orders
 
 ## First-time setup (once per computer)
 
-1. **Copy the app folder.** Put the `Fulfillment Studio` folder anywhere (e.g. the
-   Desktop). Start the app by double-clicking **`Fulfillment Studio.exe`**.
+1. **Install the app.** Run **`Fulfillment Studio Setup.exe`** and click through the
+   installer (no admin rights needed — it installs just for you). When it finishes
+   you'll have a **Fulfillment Studio** shortcut in the Start menu (and on the
+   desktop if you ticked that box). Launch it from there.
+
+   > If Windows shows a blue "Windows protected your PC" box, click **More info →
+   > Run anyway** — that just means the installer isn't code-signed yet.
 
 2. **Add the access key.** The first launch creates a settings folder at
    `C:\Users\<you>\.flanacom-tool\`. Inside it you'll find `config.example.json`.
