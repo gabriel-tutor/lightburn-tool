@@ -121,9 +121,19 @@ async function loadProductPhoto(orderNumber, idx){
   }
 }
 
+// Next order still needing work, from the FULL set (ignores the dashboard's
+// active filter — otherwise "Start engraving"/post-ship hop misfires when the
+// Shipped/To-do chip is active).
+async function firstOpenOrder(){
+  const res = await API.listOrders('all', '');
+  const list = (res && res.orders) || [];
+  const o = list.find(c => c.status !== 'graviert_verschickt');
+  return o ? o.order_number : null;
+}
+
 async function startEngraving(){
-  const first = ORDERS.find(c => c.status !== 'graviert_verschickt');
-  if(first){ await openOrder(first.order_number); toast('Starting with '+first.order_number); }
+  const n = await firstOpenOrder();
+  if(n){ await openOrder(n); toast('Starting with '+n); }
   else toast('No open orders to engrave','gold');
 }
 
@@ -280,8 +290,8 @@ async function confirmShip(){
   if(!res || !res.ok){ toast((res && res.error)||'Cannot ship','gold'); return; }
   toast('"'+orderNumber+'" shipped');
   await loadDashboard();
-  const first = ORDERS.find(c => c.status !== 'graviert_verschickt');
-  if(first){ await openOrder(first.order_number); }
+  const n = await firstOpenOrder();
+  if(n){ await openOrder(n); }
   else { goDashboard(); toast('All open orders done!'); }
 }
 
