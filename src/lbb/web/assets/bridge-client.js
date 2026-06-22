@@ -19,6 +19,7 @@ const API = (() => {
     open_label: () => ({ ok: true }),
     print_label: () => ({ ok: true }),
     lightburn_status: () => ({ running: false }),
+    product_image: () => ({ ok: false }),
   };
   return {
     listOrders: wrap("list_orders"),
@@ -31,5 +32,6 @@ const API = (() => {
     openLabel: wrap("open_label"),
     printLabel: wrap("print_label"),
     lightburnStatus: wrap("lightburn_status"),
+    productImage: wrap("product_image"),
   };
 })();
