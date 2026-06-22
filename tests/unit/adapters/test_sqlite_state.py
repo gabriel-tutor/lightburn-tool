@@ -1,38 +1,51 @@
+import threading
+
 from lbb.adapters.sqlite_state import SqliteStateStore
-from lbb.core.fulfillment import OrderStatus
 
 
-def test_mark_side_then_read_back(tmp_path):
+def test_mark_and_read_engraved_keys(tmp_path):
     s = SqliteStateStore(tmp_path / "state.sqlite")
-    s.mark_side("306-1", "A", "Front", True)
-    assert s.engraved_sides("306-1") == {("A", "Front")}
+    assert s.engraved_keys("306-1") == set()
+    s.mark_engraved("306-1", "engraving/a Front.pdf", True)
+    s.mark_engraved("306-1", "engraving/a Back.pdf", True)
+    assert s.engraved_keys("306-1") == {"engraving/a Front.pdf", "engraving/a Back.pdf"}
 
 
-def test_unmark_side_removes_it(tmp_path):
+def test_unmark_removes_key(tmp_path):
     s = SqliteStateStore(tmp_path / "state.sqlite")
-    s.mark_side("306-1", "A", "Front", True)
-    s.mark_side("306-1", "A", "Front", False)
-    assert s.engraved_sides("306-1") == set()
+    s.mark_engraved("306-1", "k1", True)
+    s.mark_engraved("306-1", "k1", False)
+    assert s.engraved_keys("306-1") == set()
 
 
-def test_override_set_get_clear(tmp_path):
+def test_mark_is_idempotent(tmp_path):
     s = SqliteStateStore(tmp_path / "state.sqlite")
-    assert s.get_override("306-1") is None
-    s.set_override("306-1", OrderStatus.HOLD)
-    assert s.get_override("306-1") is OrderStatus.HOLD
-    s.set_override("306-1", None)
-    assert s.get_override("306-1") is None
+    s.mark_engraved("306-1", "k1", True)
+    s.mark_engraved("306-1", "k1", True)
+    assert s.engraved_keys("306-1") == {"k1"}
 
 
-def test_comments_append_in_order(tmp_path):
-    s = SqliteStateStore(tmp_path / "state.sqlite")
-    s.add_comment("306-1", "re-engrave back side", "A. Fink")
-    s.add_comment("306-1", "fixed", "A. Fink")
-    texts = [c.text for c in s.comments("306-1")]
-    assert texts == ["re-engrave back side", "fixed"]
-
-
-def test_state_persists_across_reopen(tmp_path):
+def test_survives_reopen(tmp_path):
     db = tmp_path / "state.sqlite"
-    SqliteStateStore(db).mark_side("306-1", "A", "Front", True)
-    assert SqliteStateStore(db).engraved_sides("306-1") == {("A", "Front")}
+    SqliteStateStore(db).mark_engraved("306-1", "k1", True)
+    assert SqliteStateStore(db).engraved_keys("306-1") == {"k1"}
+
+
+def test_usable_from_another_thread(tmp_path):
+    """pywebview dispatches bridge calls on a worker thread; the connection is
+    created on the main thread. This must not raise ProgrammingError."""
+    s = SqliteStateStore(tmp_path / "state.sqlite")
+    errors = []
+
+    def worker():
+        try:
+            s.mark_engraved("306-1", "k1", True)
+            s.engraved_keys("306-1")
+        except Exception as e:  # noqa: BLE001
+            errors.append(e)
+
+    t = threading.Thread(target=worker)
+    t.start()
+    t.join()
+    assert errors == [], errors
+    assert s.engraved_keys("306-1") == {"k1"}
