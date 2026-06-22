@@ -37,3 +37,6 @@ config.json
 /dist2/
 /*.pdf
 /doc-dump*.txt
+
+# Inno Setup installer output
+/packaging/installer-output/
