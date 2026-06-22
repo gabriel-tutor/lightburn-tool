@@ -16,8 +16,6 @@ function productSVG(type,color){
   return '<svg viewBox="0 0 200 150" xmlns="http://www.w3.org/2000/svg">'+DEFS+shape+'</svg>';
 }
 
-const TYPE_ORDER=['Bracelet','Necklace','Keychain','Flask'];
-
 /* ===== live data state ===== */
 let ORDERS = [];     // dashboard cards from the backend
 let CURRENT = null;  // full order detail for the open order
@@ -40,8 +38,6 @@ function statusOf(o){
   const labels = {not_done_yet:'Open', graviert_verschickt:'Engraved & shipped', revision:'Needs review'};
   return {key, label: labels[key] || key};
 }
-
-function plural(t){ return ({Bracelet:'Bracelets',Necklace:'Necklaces',Keychain:'Keychains',Flask:'Flasks'})[t]||t+'s'; }
 
 /* ===== dashboard loader ===== */
 async function loadDashboard(){
@@ -81,7 +77,7 @@ function renderDashboard(){
       const b = card.bucket || 'Other';
       if(b!==lastBucket){
         const cnt=ORDERS.filter(c=>c.bucket===b).length;
-        html+='<div class="lgroup">'+plural(b)+' <span class="gc">'+cnt+'</span></div>';
+        html+='<div class="lgroup">'+b+' <span class="gc">'+cnt+'</span></div>';
         lastBucket=b;
       }
       const stKey = card.status || 'not_done_yet';
