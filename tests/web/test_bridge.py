@@ -35,6 +35,10 @@ class FakeService:
     def label_file(self, n):
         return None
 
+    def product_image(self, n, idx):
+        self.calls.append(("image", n, idx))
+        return {"ok": True, "data_uri": "data:image/png;base64,AAA"}
+
 
 def test_bridge_delegates_queries_and_commands():
     svc = FakeService()
@@ -52,3 +56,10 @@ def test_bridge_delegates_queries_and_commands():
 def test_open_label_when_missing_returns_error():
     b = JsApiBridge(FakeService())
     assert b.open_label("306-1") == {"ok": False, "error": "No label file"}
+
+
+def test_bridge_product_image():
+    svc = FakeService()
+    b = JsApiBridge(svc)
+    assert b.product_image("306-1", 0) == {"ok": True, "data_uri": "data:image/png;base64,AAA"}
+    assert ("image", "306-1", 0) in svc.calls

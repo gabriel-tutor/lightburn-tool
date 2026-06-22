@@ -27,6 +27,9 @@ class JsApiBridge:
     def lightburn_status(self):
         return self._svc.lightburn_status()
 
+    def product_image(self, order_number, product_index):
+        return self._svc.product_image(order_number, product_index)
+
     # ── commands ──
     def engrave_side(self, order_number, file_key):
         return self._svc.engrave_side(order_number, file_key)
