@@ -23,12 +23,6 @@ block_cipher = None
 
 webview_datas, webview_binaries, webview_hiddenimports = collect_all('webview')
 
-SEED = ASSETS / "seed-orders"
-seed_datas = [
-    (str(p), str(Path("lbb/web/assets/seed-orders") / p.relative_to(SEED).parent))
-    for p in SEED.rglob("*") if p.is_file()
-]
-
 a = Analysis(
     [str(SRC / "lbb" / "__main__.py")],
     pathex=[str(SRC)],
@@ -42,7 +36,7 @@ a = Analysis(
         # Brand assets (Flanacom icon + header logo).
         (str(ASSETS / "flanacom.ico"), "lbb/web/assets"),
         (str(ASSETS / "flanacom-logo.png"), "lbb/web/assets"),
-    ] + seed_datas + webview_datas,
+    ] + webview_datas,
     hiddenimports=webview_hiddenimports,
     hookspath=[],
     runtime_hooks=[],
@@ -63,7 +57,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name="Flanacom Tool",
+    name="Fulfillment Studio",
     icon=str(ASSETS / "flanacom.ico"),
     debug=False,
     bootloader_ignore_signals=False,
@@ -80,13 +74,13 @@ coll = COLLECT(
     strip=False,
     upx=False,
     upx_exclude=[],
-    name="Flanacom Tool",
+    name="Fulfillment Studio",
 )
 
 if sys.platform == "darwin":
     app = BUNDLE(
         coll,
-        name="Flanacom Tool.app",
+        name="Fulfillment Studio.app",
         bundle_identifier="com.flanacom.tool",
         icon=str(ASSETS / "flanacom.ico"),
         info_plist={
