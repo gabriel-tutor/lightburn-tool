@@ -110,6 +110,21 @@ async function openOrder(orderNumber){
   showView('order'); renderOrder();
 }
 
+async function loadProductPhoto(orderNumber, idx){
+  let res;
+  try { res = await API.productImage(orderNumber, idx); }
+  catch(e){ return; }                    // keep the icon on any failure
+  // ignore if the operator moved to another product/order while loading
+  if(!CURRENT || CURRENT.order_number!==orderNumber || active!==idx) return;
+  if(res && res.ok && res.data_uri){
+    const img=document.getElementById('prodPhoto');
+    if(img){
+      img.onload=function(){ img.hidden=false; const ic=document.querySelector('#productVisual .prod-icon'); if(ic) ic.style.display='none'; };
+      img.src=res.data_uri;
+    }
+  }
+}
+
 async function startEngraving(){
   const first = ORDERS.find(c => c.status !== 'graviert_verschickt');
   if(first){ await openOrder(first.order_number); toast('Starting with '+first.order_number); }
@@ -127,8 +142,6 @@ function renderOrder(){
     return;
   }
   document.getElementById('ordNo').textContent='#'+O.order_number;
-  document.getElementById('recSub').textContent=O.placed_label||'';
-
   const amLink=document.getElementById('amazonLink');
   const hasAmazon = O.amazon_url && O.amazon_url !== '#' && O.amazon_url !== '';
   amLink.style.opacity = hasAmazon ? '1' : '.5';
@@ -155,7 +168,9 @@ function renderOrder(){
   const imgClass = p.color==='Silver' ? 'silver' : '';
   vis.className='product '+(imgClass||'');
   const svgHtml = productSVG(p.product_type, p.color);
-  vis.innerHTML=svgHtml+'<div class="sidechips">'+p.sides.map(s=>'<span class="schip'+(s.engraved?' done':'')+'">'+(s.engraved?'<svg class="sd" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg>':'<svg class="sd" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/></svg>')+s.name+'</span>').join('')+'</div>';
+  const chips='<div class="sidechips">'+p.sides.map(s=>'<span class="schip'+(s.engraved?' done':'')+'">'+(s.engraved?'<svg class="sd" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg>':'<svg class="sd" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/></svg>')+s.name+'</span>').join('')+'</div>';
+  vis.innerHTML='<div class="prod-icon">'+svgHtml+'</div><img class="prod-photo" id="prodPhoto" alt="Product reference" hidden>'+chips;
+  if(p.has_image){ loadProductPhoto(O.order_number, active); }
 
   document.getElementById('orderKv').innerHTML=
     '<div class="k">Order no.</div><div class="v mono">'+O.order_number+'</div>'
@@ -180,15 +195,25 @@ function renderOrder(){
     return '<div class="side'+(s.engraved?' done':'')+'"><span class="sicon">'+s.name.slice(0,1)+'</span><div class="smeta"><div class="sn">'+s.name+'</div><div class="sf">LightBurn job · design file</div></div>'+btn+'</div>';
   }).join('');
 
-  const stepEng=document.getElementById('stepEng'), stepShip=document.getElementById('stepShip');
-  stepEng.classList.remove('done','active'); stepShip.classList.remove('done','active');
+  const stageEng=document.getElementById('stageEng'), stageShip=document.getElementById('stageShip');
+  const flowBar=document.getElementById('flowBar'), flowRev=document.getElementById('flowRev'), flowEl=document.getElementById('flow');
   const done=doneOf(O), tot=totOf(O);
-  document.getElementById('bar1').style.width=(done/Math.max(tot,1)*100)+'%';
-  const isShipped = O.status==='graviert_verschickt';
-  const isAllEng = allEng(O);
-  if(isShipped){ stepEng.classList.add('done'); stepShip.classList.add('done'); document.getElementById('bar2').style.width='100%'; document.getElementById('engSub').textContent='Done'; document.getElementById('shipSub').textContent='Done'; }
-  else if(isAllEng){ stepEng.classList.add('done'); stepShip.classList.add('active'); document.getElementById('bar2').style.width='0%'; document.getElementById('engSub').textContent='Done'; document.getElementById('shipSub').textContent='Pending'; }
-  else { stepEng.classList.add('active'); document.getElementById('bar2').style.width='0%'; document.getElementById('engSub').textContent=done+'/'+tot; document.getElementById('shipSub').textContent='Pending'; }
+  const isShipped=O.status==='graviert_verschickt';
+  const isRevision=O.status==='revision';
+  const isAllEng=allEng(O);
+  stageEng.classList.remove('done','active'); stageShip.classList.remove('done','active');
+  flowRev.hidden=!isRevision; flowEl.classList.toggle('revision', isRevision);
+  document.getElementById('engSub').textContent = isShipped||isAllEng ? 'Done' : done+'/'+Math.max(tot,0);
+  if(isShipped){
+    stageEng.classList.add('done'); stageShip.classList.add('done');
+    flowBar.style.width='100%'; document.getElementById('shipSub').textContent='Done';
+  } else if(isAllEng){
+    stageEng.classList.add('done'); stageShip.classList.add('active');
+    flowBar.style.width='50%'; document.getElementById('shipSub').textContent='Ready';
+  } else {
+    stageEng.classList.add('active');
+    flowBar.style.width='0%'; document.getElementById('shipSub').textContent='Pending';
+  }
 
   const pill=document.getElementById('livePill'), pillTxt=document.getElementById('livePillText'), sel=document.getElementById('statusSel');
   pill.classList.remove('hold');

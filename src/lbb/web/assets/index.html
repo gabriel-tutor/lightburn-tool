@@ -69,12 +69,11 @@
       </div>
     </div>
 
-    <div class="stepper">
-      <div class="step done"><span class="num">✓</span><span><span class="lbl">Received</span><span class="sub" id="recSub">—</span></span></div>
-      <span class="bar"><i id="bar1"></i></span>
-      <div class="step" id="stepEng"><span class="num">2</span><span><span class="lbl">Engraved</span><span class="sub" id="engSub">Pending</span></span></div>
-      <span class="bar"><i id="bar2"></i></span>
-      <div class="step" id="stepShip"><span class="num">3</span><span><span class="lbl">Shipped</span><span class="sub" id="shipSub">Pending</span></span></div>
+    <div class="flow" id="flow">
+      <div class="stage" id="stageEng"><span class="sdot"></span><span class="stxt"><span class="slbl">Engrave</span><span class="ssub" id="engSub">Pending</span></span></div>
+      <span class="sbar"><i id="flowBar"></i></span>
+      <div class="stage" id="stageShip"><span class="sdot"></span><span class="stxt"><span class="slbl">Ship</span><span class="ssub" id="shipSub">Pending</span></span></div>
+      <div class="flow-rev" id="flowRev" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>Needs review — flagged for revision</div>
     </div>
 
     <div class="pbar">

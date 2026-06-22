@@ -248,3 +248,24 @@
 .btn.ghost{background:transparent}
 .api-banner{position:sticky;top:0;z-index:50;background:#fff4e5;color:#7a4b00;border-bottom:1px solid #f0d6a8;padding:8px 16px;font-size:14px}
 .api-banner[hidden]{display:none}
+
+.product{position:relative}
+.prod-photo{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;border-radius:14px;background:#fff;display:block}
+.prod-photo[hidden]{display:none}
+#productVisual .prod-icon{width:100%;height:100%;display:flex;align-items:center;justify-content:center}
+
+.flow{display:flex;align-items:center;gap:14px;margin:18px 0 6px;padding:14px 18px;background:#fff;border:1px solid var(--line,#ece6da);border-radius:16px}
+.flow .stage{display:flex;align-items:center;gap:10px;color:var(--ink-faint,#9a948a)}
+.flow .stage .sdot{width:12px;height:12px;border-radius:50%;background:#d8d2c6;flex:none}
+.flow .stage.active{color:var(--ink,#2a2620)}
+.flow .stage.active .sdot{background:#c79a3f}
+.flow .stage.done{color:#2e9e5b}
+.flow .stage.done .sdot{background:#2e9e5b}
+.flow .stxt{display:flex;flex-direction:column;line-height:1.1}
+.flow .stxt .slbl{font-weight:600}
+.flow .stxt .ssub{font-size:12px;color:var(--ink-faint,#9a948a)}
+.flow .sbar{flex:1;height:4px;border-radius:3px;background:#ece6da;overflow:hidden}
+.flow .sbar i{display:block;height:100%;background:#2e9e5b;width:0;transition:width .3s}
+.flow.revision{border-color:#e6b877;background:#fff7ec}
+.flow-rev{display:flex;align-items:center;gap:8px;color:#a85b00;font-weight:600;font-size:13px;margin-left:auto}
+.flow-rev svg{width:16px;height:16px}
