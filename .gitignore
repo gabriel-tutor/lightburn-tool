@@ -28,3 +28,7 @@ audit.log
 # OS
 .DS_Store
 Thumbs.db
+
+# Local runtime secrets — never commit the real key
+config.json
+.flanacom-tool/
