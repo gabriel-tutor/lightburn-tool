@@ -1,4 +1,5 @@
 from datetime import datetime
+from datetime import datetime as _dt
 from pathlib import Path
 
 from lbb.app.fulfillment_service import FulfillmentService
@@ -181,3 +182,34 @@ def test_product_image_unknown_product(tmp_path):
     svc = FulfillmentService(gateway=gw, state=MemState(),
                              lightburn=FakeLightBurn(), cache_dir=tmp_path)
     assert svc.product_image("306-IMG", 9)["ok"] is False
+
+
+def test_get_order_includes_metadata_and_sides_summary(tmp_path):
+    o = FulfillmentOrder(
+        order_id="uuid-m", order_number="306-M", amount=2,
+        instruction="With Gift Box", amazon_url="https://sc/m",
+        label_key="shipping_label/the-label.pdf",
+        link_to_graphic="https://graphic/m",
+        created_at=_dt(2026, 6, 16), updated_at=_dt(2026, 6, 22),
+        type_summary="Necklace", color_summary="Silver",
+        products=(Product(product_type="Necklace", band_color="Retro",
+                          coin_color="Silver", multiple_coins=True,
+                          special_length=True, length="50cm", coin_count=2,
+                          image_key="product_picture/ref.png",
+                          sides=(Side("Coin 1 Front", "a"), Side("Coin 1 Back", "b"),
+                                 Side("Coin 2 Front", "c"), Side("Coin 2 Back", "d"))),),
+    )
+    gw = FakeGateway([o])
+    svc = FulfillmentService(gateway=gw, state=MemState(),
+                             lightburn=FakeLightBurn(), cache_dir=tmp_path)
+    d = svc.get_order("306-M")
+    assert d["link_to_graphic"] == "https://graphic/m"
+    assert d["created_label"] and d["updated_label"]
+    assert d["type_summary"] == "Necklace" and d["color_summary"] == "Silver"
+    assert d["label_name"] == "the-label.pdf"
+    p = d["products"][0]
+    assert p["band_color"] == "Retro"
+    assert p["multiple_coins"] is True
+    assert p["special_length"] is True and p["length"] == "50cm"
+    assert p["sides_summary"] == "2 coins · Front & Back each — 4 jobs"
+    assert p["has_image"] is True

@@ -17,6 +17,7 @@ from lbb.core.fulfillment import (
     OrderStatus,
     all_sides,
     queue_sort_key,
+    sides_summary,
 )
 from lbb.ports.engraving import EngravingApiError, EngravingGateway
 from lbb.ports.fulfillment import FulfillmentStateStore
@@ -32,6 +33,10 @@ def _placed_label(o: FulfillmentOrder) -> str:
     if not o.placed_at:
         return ""
     return f"{o.placed_at:%b} {o.placed_at.day}, {o.placed_at:%Y}"
+
+
+def _date_label(dt) -> str:
+    return f"{dt:%b} {dt.day}, {dt:%Y}" if dt else ""
 
 
 class FulfillmentService:
@@ -94,6 +99,13 @@ class FulfillmentService:
             "has_label": bool(o.label_key),
             "status": str(o.status),
             "progress": {"done": done, "total": total},
+            "link_to_graphic": o.link_to_graphic,
+            "created_label": _date_label(o.created_at),
+            "updated_label": _date_label(o.updated_at),
+            "type_summary": o.type_summary,
+            "color_summary": o.color_summary,
+            "has_order_picture": bool(o.order_picture_key),
+            "label_name": Path(o.label_key).name if o.label_key else "",
             "products": [
                 {
                     "product_type": p.product_type,
@@ -102,6 +114,12 @@ class FulfillmentService:
                     "band_color": p.band_color,
                     "qty": p.qty,
                     "image_key": p.image_key,
+                    "multiple_coins": p.multiple_coins,
+                    "special_length": p.special_length,
+                    "length": p.length,
+                    "coin_count": p.coin_count,
+                    "sides_summary": sides_summary(p),
+                    "has_image": bool(p.image_key),
                     "sides": [
                         {"name": s.name, "file_key": s.file_key,
                          "engraved": s.file_key in engraved}
