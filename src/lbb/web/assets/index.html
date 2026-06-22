@@ -17,7 +17,7 @@
     <div class="topbar">
       <div class="brand"><span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8l9-5 9 5-9 5-9-5z"/><path d="M3 8v8l9 5 9-5V8"/></svg></span><span>Fulfillment Studio<small>Laser engraving · order pipeline</small></span></div>
       <div class="spacer"></div>
-      <span class="btn ghost" style="cursor:default">A. Fink · Operator</span>
+      <span class="btn ghost" style="cursor:default">Operator</span>
     </div>
 
     <div class="dash-head">
@@ -55,7 +55,6 @@
       <div class="brand" style="margin-left:6px"><span class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8l9-5 9 5-9 5-9-5z"/><path d="M3 8v8l9 5 9-5V8"/></svg></span><span>Fulfillment Studio<small>Laser engraving · order pipeline</small></span></div>
       <div class="spacer"></div>
       <a class="btn amazon" id="amazonLink" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14L21 3"/></svg>Open on Amazon</a>
-      <button class="btn ghost" onclick="copyOrder()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>Share</button>
     </div>
 
     <div class="order-head">
@@ -84,14 +83,14 @@
     <div class="grid">
       <div>
         <div class="card">
-          <div class="card-h"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/></svg><span class="t" id="prodCardTitle">Product</span><span class="right tag">product</span></div>
+          <div class="card-h"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/></svg><span class="t" id="prodCardTitle">Product</span></div>
           <div class="card-b">
             <div class="product" id="productVisual"></div>
           </div>
         </div>
 
         <div class="card">
-          <div class="card-h"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7z"/><circle cx="5.5" cy="18.5" r="2"/><circle cx="18.5" cy="18.5" r="2"/></svg><span class="t">Shipping label</span><span class="right tag">one per shipment</span></div>
+          <div class="card-h"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7z"/><circle cx="5.5" cy="18.5" r="2"/><circle cx="18.5" cy="18.5" r="2"/></svg><span class="t">Shipping label</span></div>
           <div class="card-b">
             <div class="frow">
               <span class="ficon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7z"/><circle cx="5.5" cy="18.5" r="2"/><circle cx="18.5" cy="18.5" r="2"/></svg></span>
@@ -101,7 +100,6 @@
                 <button class="fbtn print" onclick="printLabel()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg>Print</button>
               </div>
             </div>
-            <div class="dev-note">Print → local print handler. Open → render PDF.</div>
           </div>
         </div>
       </div>
@@ -115,7 +113,6 @@
             <div class="kv" id="prodKv"></div>
             <div class="subh">Engraving tasks <span class="c" id="sideC"></span></div>
             <div id="sides"></div>
-            <div class="dev-note">Each side = one LightBurn job. Re-clicking a finished side re-opens it in LightBurn. Shipping locked until every task done.</div>
           </div>
         </div>
 

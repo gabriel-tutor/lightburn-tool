@@ -151,7 +151,7 @@ function renderOrder(){
 
   // Label
   document.getElementById('labelCarrier').textContent = O.has_label ? 'Shipping label' : '—';
-  document.getElementById('labelFile').textContent = O.has_label ? 'label.pdf' : '(no label file)';
+  document.getElementById('labelFile').textContent = O.has_label ? (O.label_name || 'label.pdf') : '(no label file)';
 
   document.getElementById('giftPill').innerHTML = O.gift_box ? '<span class="pill gift"><span class="gi">'+GIFT_SVG+'</span>With gift box</span>' : '';
 
@@ -175,7 +175,10 @@ function renderOrder(){
   document.getElementById('orderKv').innerHTML=
     '<div class="k">Order no.</div><div class="v mono">'+O.order_number+'</div>'
    +'<div class="k">Order date</div><div class="v">'+(O.placed_label||'')+'</div>'
+   +(O.created_label?'<div class="k">Received</div><div class="v">'+O.created_label+'</div>':'')
+   +(O.updated_label?'<div class="k">Last updated</div><div class="v">'+O.updated_label+'</div>':'')
    +'<div class="k">Link to Order</div><div class="v">'+(hasAmazon?'<a href="#" onclick="API.openAmazon(CURRENT.amazon_url);return false;">Open on Amazon ↗</a>':'<span style="color:var(--ink-faint)">—</span>')+'</div>'
+   +(O.link_to_graphic?'<div class="k">Graphic</div><div class="v"><a href="#" onclick="API.openAmazon(CURRENT.link_to_graphic);return false;">Open graphic ↗</a></div>':'')
    +'<div class="k">Gift box</div><div class="v">'+(O.gift_box?'<span class="badge gift">'+GIFT_SVG+' With gift box</span>':'<span style="color:var(--ink-faint)">No</span>')+'</div>'
    +'<div class="k">Items</div><div class="v">'+(O.amount||O.products.length)+'</div>';
 
@@ -183,9 +186,11 @@ function renderOrder(){
   document.getElementById('prodSubh').innerHTML='Product '+(active+1)+' of '+O.products.length+' <span class="c">'+p.product_type+'</span>';
   document.getElementById('prodKv').innerHTML=
     '<div class="k">Product type</div><div class="v"><span class="badge">'+p.product_type+'</span></div>'
-   +'<div class="k">Color</div><div class="v"><span class="'+colorClass+'">'+p.color+'</span></div>'
-   +'<div class="k">Quantity</div><div class="v">'+p.qty+'</div>'
-   +'<div class="k">Sides</div><div class="v">'+(p.sides.length>1?'Front &amp; Back':'Front only')+'</div>';
+   +'<div class="k">Coin / plate color</div><div class="v"><span class="'+colorClass+'">'+(p.color||'—')+'</span></div>'
+   +(p.band_color?'<div class="k">Chain / band color</div><div class="v"><span class="badge">'+p.band_color+'</span></div>':'')
+   +(p.multiple_coins||(p.coin_count>1)?'<div class="k">Coins</div><div class="v">'+(p.coin_count||2)+' coins</div>':'')
+   +(p.special_length?'<div class="k">Special length</div><div class="v">'+(p.length?p.length:'Yes')+'</div>':'')
+   +'<div class="k">Engraving</div><div class="v">'+(p.sides_summary||'')+'</div>';
 
   document.getElementById('sideC').textContent=p.sides.filter(s=>s.engraved).length+' / '+p.sides.length+' done';
   document.getElementById('sides').innerHTML=p.sides.map((s,si)=>{
