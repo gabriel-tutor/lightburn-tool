@@ -80,12 +80,6 @@
 
   .stat{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:600;padding:5px 11px;border-radius:100px;border:1px solid var(--line-strong);background:var(--glass-hi)}
   .stat .d{width:7px;height:7px;border-radius:50%;background:var(--ink-faint)}
-  .stat.received{color:var(--ink-soft)}
-  .stat.engraving{color:var(--accent-ink);background:var(--accent-soft);border-color:rgba(184,137,58,.3)} .stat.engraving .d{background:var(--accent)}
-  .stat.engraved{color:var(--blue);background:var(--blue-soft);border-color:rgba(80,120,200,.3)} .stat.engraved .d{background:var(--blue)}
-  .stat.shipped{color:var(--ok-ink);background:var(--ok-soft);border-color:rgba(31,157,99,.3)} .stat.shipped .d{background:var(--ok)}
-  .stat.hold{color:var(--warn);background:var(--warn-soft);border-color:rgba(194,65,12,.3)} .stat.hold .d{background:var(--warn)}
-
   /* ===== ORDER VIEW ===== */
   .order-head{display:flex;align-items:flex-end;gap:18px;flex-wrap:wrap;margin-bottom:8px;padding:0 4px}
   .order-head h1{font-family:"Bricolage Grotesque",sans-serif;font-weight:700;font-size:clamp(26px,4vw,38px);letter-spacing:-.03em;line-height:1}

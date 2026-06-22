@@ -149,15 +149,6 @@ function renderOrder(){
   const svgHtml = productSVG(p.product_type, p.color);
   vis.innerHTML=svgHtml+'<div class="sidechips">'+p.sides.map(s=>'<span class="schip'+(s.engraved?' done':'')+'">'+(s.engraved?'<svg class="sd" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg>':'<svg class="sd" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/></svg>')+s.name+'</span>').join('')+'</div>';
 
-  const instr=document.getElementById('instrLink');
-  if(p.instructions_url && p.instructions_url!=='#' && p.instructions_url!==''){
-    instr.href='#';
-    instr.onclick=function(e){ e.preventDefault(); API.openInstructions(p.instructions_url).then(r=>{ if(r&&!r.ok) toast(r.error||'Cannot open instructions','gold'); }); };
-  } else {
-    instr.href='#';
-    instr.onclick=function(e){e.preventDefault();toast('No instructions file for this product','gold');};
-  }
-
   document.getElementById('orderKv').innerHTML=
     '<div class="k">Order no.</div><div class="v mono">'+O.order_number+'</div>'
    +'<div class="k">Order date</div><div class="v">'+(O.placed_label||'')+'</div>'
@@ -284,7 +275,6 @@ async function flagRevision(){
 }
 
 function copyOrder(){ navigator.clipboard?.writeText(CURRENT.order_number); toast('Order number copied'); }
-function setLastUpd(){ const e=document.getElementById('lastUpd'); if(e) e.textContent='just now'; }
 function toast(msg,kind){
   const wrap=document.getElementById('toastWrap'); const el=document.createElement('div');
   el.className='toast'+(kind==='gold'||kind==='pdf'?' gold':'');
