@@ -82,6 +82,7 @@ class EngravingApiClient(EngravingGateway):
             raise EngravingApiError(
                 f"Status update failed ({code})", status_code=code
             )
+        self._fetched_at = None
 
     # ── internals ──────────────────────────────────────────────────────────
     def _fetch(self) -> None:

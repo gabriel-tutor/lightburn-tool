@@ -118,6 +118,14 @@ async function startEngraving(){
 
 function renderOrder(){
   const O = CURRENT;
+  if(!O.products || !O.products.length){
+    document.getElementById('ordNo').textContent='#'+O.order_number;
+    document.getElementById('abLead').textContent='';
+    document.getElementById('abState').textContent='Nothing to engrave in this order';
+    document.getElementById('engraveBtn').disabled=true;
+    document.getElementById('shipBtn').disabled=true;
+    return;
+  }
   document.getElementById('ordNo').textContent='#'+O.order_number;
   document.getElementById('recSub').textContent=O.placed_label||'';
 
@@ -200,6 +208,7 @@ function renderOrder(){
   document.getElementById('abTrack').style.width=(done/Math.max(tot,1)*100)+'%';
   if(isShipped){ document.getElementById('abLead').textContent='Done'; document.getElementById('abState').innerHTML='Order complete ✓ — sides still re-engravable below'; engLbl.textContent='All engraved'; engBtn.disabled=true; shipBtn.disabled=true; }
   else if(np){ document.getElementById('abLead').textContent='Next:'; document.getElementById('abState').innerHTML='Product '+(np.pi+1)+' · <b>'+np.s.name+'</b>'; engLbl.textContent='Engrave '+np.s.name.toLowerCase()+' · LightBurn'; engBtn.disabled=busy; shipBtn.disabled=true; }
+  else if(tot===0){ document.getElementById('abLead').textContent=''; document.getElementById('abState').textContent='Nothing to engrave'; engLbl.textContent='Nothing to engrave'; engBtn.disabled=true; shipBtn.disabled=true; }
   else { document.getElementById('abLead').textContent='Next:'; document.getElementById('abState').textContent='All engraved — ready to ship'; engLbl.textContent='All sides engraved'; engBtn.disabled=true; shipBtn.disabled=false; }
 
 }
@@ -299,10 +308,10 @@ async function printLabel(){
 async function pollLightBurn(){
   const { running } = await API.lightburnStatus();
   const pill = document.getElementById('livePill');
-  if(pill){ pill.classList.toggle('hold', !running); }
+  if(pill){ pill.classList.toggle('lb-off', !running); }
 }
 setInterval(pollLightBurn, 3000); pollLightBurn();
 
 /* ===== bootstrap ===== */
 window.addEventListener('pywebviewready', loadDashboard);
-document.addEventListener('DOMContentLoaded', () => { showView('dashboard'); loadDashboard(); });
+document.addEventListener('DOMContentLoaded', () => { showView('dashboard'); });

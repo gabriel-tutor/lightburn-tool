@@ -93,6 +93,7 @@
   .pill .gi{width:14px;height:14px}
   .pill.live{background:var(--ok-soft);border-color:rgba(31,157,99,.35);color:var(--ok-ink)} .pill.live .dot{background:var(--ok);animation:pulse 2s infinite}
   .pill.hold{background:var(--warn-soft);border-color:rgba(194,65,12,.35);color:var(--warn)} .pill.hold .dot{background:var(--warn)}
+  .pill.lb-off .dot{background:#9aa1ab}
   .pill.gift{background:var(--accent-soft);border-color:rgba(184,137,58,.4);color:var(--accent-ink)}
   @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(31,157,99,.5)}70%{box-shadow:0 0 0 6px rgba(31,157,99,0)}100%{box-shadow:0 0 0 0 rgba(31,157,99,0)}}
 

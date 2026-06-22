@@ -158,3 +158,12 @@ def test_list_orders_raises_on_401():
     with pytest.raises(EngravingApiError) as ei:
         _client(Unauth()).list_orders()
     assert ei.value.status_code == 401
+
+
+def test_set_status_invalidates_cache():
+    t = FakeTransport([ORDER])
+    c = _client(t)
+    c.list_orders()                 # get_count == 1
+    c.set_status("uuid-1", OrderStatus.REVISION)
+    c.get("306-0804157-6173963")    # cache invalidated -> must re-GET
+    assert t.get_count == 2
