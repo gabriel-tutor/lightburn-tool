@@ -121,6 +121,8 @@ class EngravingApiClient(EngravingGateway):
 
 def _safe_name(file_key: str) -> str:
     name = file_key.replace("\\", "/").split("/")[-1] or "download"
+    if name in (".", ".."):
+        name = "download"
     return re.sub(r"[^A-Za-z0-9._ -]", "_", name)
 
 
