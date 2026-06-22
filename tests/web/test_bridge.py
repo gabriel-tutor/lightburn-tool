@@ -1,47 +1,54 @@
 from lbb.web.bridge import JsApiBridge
 
 
-class _StubService:
+class FakeService:
     def __init__(self):
         self.calls = []
 
     def list_orders(self, *, filter="all", query=""):
-        self.calls.append(("list", filter, query)); return [{"order_number": "306-1"}]  # noqa: E702
+        self.calls.append(("list", filter, query))
+        return {"orders": [], "error": None}
 
-    def get_order(self, order_number):
-        self.calls.append(("get", order_number)); return {"order_number": order_number}  # noqa: E702
+    def get_order(self, n):
+        self.calls.append(("get", n))
+        return {"order_number": n}
 
-    def engrave_side(self, order_number, item_id, side_name):
-        self.calls.append(("engrave", order_number, item_id, side_name)); return {"ok": True}  # noqa: E702
-
-    def set_status(self, order_number, status):
-        return {"ok": True, "status": status}
-
-    def ship_order(self, order_number):
+    def engrave_side(self, n, file_key):
+        self.calls.append(("engrave", n, file_key))
         return {"ok": True}
 
-    def add_comment(self, order_number, text):
+    def ship_order(self, n):
+        self.calls.append(("ship", n))
+        return {"ok": True}
+
+    def set_status(self, n, status):
+        self.calls.append(("status", n, status))
+        return {"ok": True}
+
+    def flag_revision(self, n):
+        self.calls.append(("revision", n))
         return {"ok": True}
 
     def lightburn_status(self):
         return {"running": True}
 
-
-def test_list_orders_delegates_with_kwargs():
-    svc = _StubService()
-    bridge = JsApiBridge(svc)
-    assert bridge.list_orders("open", "306") == [{"order_number": "306-1"}]
-    assert svc.calls[0] == ("list", "open", "306")
+    def label_file(self, n):
+        return None
 
 
-def test_engrave_side_delegates_positionally():
-    svc = _StubService()
-    bridge = JsApiBridge(svc)
-    assert bridge.engrave_side("306-1", "A", "Front") == {"ok": True}
-    assert svc.calls[-1] == ("engrave", "306-1", "A", "Front")
+def test_bridge_delegates_queries_and_commands():
+    svc = FakeService()
+    b = JsApiBridge(svc)
+    assert b.list_orders("open", "306") == {"orders": [], "error": None}
+    assert b.get_order("306-1") == {"order_number": "306-1"}
+    assert b.engrave_side("306-1", "engraving/x Front.pdf") == {"ok": True}
+    assert b.ship_order("306-1") == {"ok": True}
+    assert b.set_status("306-1", "revision") == {"ok": True}
+    assert b.flag_revision("306-1") == {"ok": True}
+    assert b.lightburn_status() == {"running": True}
+    assert ("engrave", "306-1", "engraving/x Front.pdf") in svc.calls
 
 
-def test_open_helpers_are_safe_noops_without_handler(monkeypatch):
-    bridge = JsApiBridge(_StubService())
-    monkeypatch.setattr(bridge, "_open_path_or_url", lambda *_: None)
-    assert bridge.open_amazon("https://example.com")["ok"] is True
+def test_open_label_when_missing_returns_error():
+    b = JsApiBridge(FakeService())
+    assert b.open_label("306-1") == {"ok": False, "error": "No label file"}

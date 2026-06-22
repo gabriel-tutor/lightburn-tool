@@ -1,8 +1,8 @@
 """JsApiBridge — exposed to JavaScript as `window.pywebview.api`.
 
-Every public method returns a JSON-serialisable value (dict/list/scalar) and
-delegates to FulfillmentService. Open/print helpers use the OS shell. This
-class deliberately holds no business logic — it only marshals arguments.
+Every method returns a JSON-serialisable value and delegates to
+FulfillmentService. No business logic — only argument marshalling and OS
+open/print of downloaded files.
 """
 
 from __future__ import annotations
@@ -28,39 +28,36 @@ class JsApiBridge:
         return self._svc.lightburn_status()
 
     # ── commands ──
-    def engrave_side(self, order_number, item_id, side_name):
-        return self._svc.engrave_side(order_number, item_id, side_name)
-
-    def set_status(self, order_number, status):
-        return self._svc.set_status(order_number, status)
+    def engrave_side(self, order_number, file_key):
+        return self._svc.engrave_side(order_number, file_key)
 
     def ship_order(self, order_number):
         return self._svc.ship_order(order_number)
 
-    def add_comment(self, order_number, text):
-        return self._svc.add_comment(order_number, text)
+    def set_status(self, order_number, status):
+        return self._svc.set_status(order_number, status)
+
+    def flag_revision(self, order_number):
+        return self._svc.flag_revision(order_number)
 
     # ── shell helpers ──
     def open_amazon(self, url):
-        return self._open_path_or_url(url) or {"ok": True}
-
-    def open_instructions(self, url):
-        return self._open_path_or_url(url) or {"ok": True}
+        return self._open(url) or {"ok": True}
 
     def open_label(self, order_number):
-        path = self._svc.label_path(order_number) if hasattr(self._svc, "label_path") else None
+        path = self._svc.label_file(order_number)
         if not path:
             return {"ok": False, "error": "No label file"}
-        return self._open_path_or_url(path) or {"ok": True}
+        return self._open(str(path)) or {"ok": True}
 
     def print_label(self, order_number):
-        path = self._svc.label_path(order_number) if hasattr(self._svc, "label_path") else None
+        path = self._svc.label_file(order_number)
         if not path:
             return {"ok": False, "error": "No label file"}
-        return self._print_path(path)
+        return self._print(str(path))
 
     # ── internals ──
-    def _open_path_or_url(self, target: str):
+    def _open(self, target: str):
         try:
             if target.startswith(("http://", "https://")):
                 webbrowser.open(target)
@@ -74,7 +71,7 @@ class JsApiBridge:
         except OSError as e:
             return {"ok": False, "error": str(e)}
 
-    def _print_path(self, target: str):
+    def _print(self, target: str):
         try:
             if sys.platform.startswith("win"):
                 os.startfile(target, "print")  # noqa: S606
