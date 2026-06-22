@@ -1,121 +1,149 @@
-import json
+from datetime import datetime
+from pathlib import Path
 
-import pytest
-
-from lbb.adapters.json_fulfillment import JsonFulfillmentRepository
-from lbb.adapters.lightburn_fake import LightBurnFake
-from lbb.adapters.sqlite_state import SqliteStateStore
 from lbb.app.fulfillment_service import FulfillmentService
-
-SEED = {
-    "orders": {
-        "306-1": {
-            "recipient": {"name": "Sabrina W.", "address": "52525 Heinsberg, DE"},
-            "gift_box": True, "placed_at": "2026-01-03T10:00:00Z",
-            "label": {"carrier": "DHL · 1 kg", "pdf_path": "labels/306-1.pdf"},
-            "products": [
-                {"item_id": "A", "name": "Heart necklace", "product_type": "Necklace",
-                 "color": "Gold", "qty": 1, "sku": "FL-NECK-HEART-G",
-                 "sides": [{"name": "Front", "pdf_path": "306-1-A-Front.pdf"},
-                           {"name": "Back", "pdf_path": "306-1-A-Back.pdf"}]}
-            ],
-        },
-        "306-2": {
-            "recipient": {"name": "Nina H.", "address": "70173 Stuttgart, DE"},
-            "placed_at": "2026-01-01T09:00:00Z",
-            "products": [
-                {"item_id": "A", "name": "Bangle", "product_type": "Bracelet",
-                 "color": "Gold", "qty": 1, "sku": "FL-BRAC-BANGLE-G",
-                 "sides": [{"name": "Front", "pdf_path": "306-2-A-Front.pdf"}]}
-            ],
-        },
-    }
-}
+from lbb.core.fulfillment import FulfillmentOrder, OrderStatus, Product, Side
 
 
-@pytest.fixture
-def svc(tmp_path) -> FulfillmentService:
-    orders_dir = tmp_path / "orders"
-    orders_dir.mkdir()
-    (orders_dir / "orders.json").write_text(json.dumps(SEED), encoding="utf-8")
-    for name in ("306-1-A-Front.pdf", "306-1-A-Back.pdf", "306-2-A-Front.pdf"):
-        (orders_dir / name).write_bytes(b"%PDF-1.4\n%%EOF\n")
-    repo = JsonFulfillmentRepository(orders_dir)
-    state = SqliteStateStore(tmp_path / "state.sqlite")
-    return FulfillmentService(repo=repo, state=state, lightburn=LightBurnFake())
+def _order(status=OrderStatus.NOT_DONE):
+    return FulfillmentOrder(
+        order_id="uuid-1",
+        order_number="306-1",
+        amount=1,
+        status=status,
+        instruction="With Gift Box each",
+        amazon_url="https://sc/x",
+        label_key="shipping_label/x.pdf",
+        placed_at=datetime(2026, 6, 15),
+        products=(
+            Product(
+                product_type="Bracelet", band_color="Retro", coin_color="Silver",
+                sides=(Side("Front", "engraving/x Front.pdf"),
+                       Side("Back", "engraving/x Back.pdf")),
+            ),
+        ),
+    )
 
 
-def test_list_orders_grouped_bracelet_before_necklace(svc):
-    cards = svc.list_orders(filter="all", query="")
-    assert [c["order_number"] for c in cards] == ["306-2", "306-1"]
-    assert cards[0]["bucket"] == "Bracelets"
+class FakeGateway:
+    def __init__(self, orders):
+        self._orders = {o.order_number: o for o in orders}
+        self.posted = []
+        self.downloads = []
+
+    def list_orders(self):
+        return list(self._orders.values())
+
+    def get(self, n):
+        return self._orders.get(n)
+
+    def download_file(self, order_id, file_key, dest_dir):
+        self.downloads.append((order_id, file_key))
+        p = Path(dest_dir) / "job.pdf"
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_bytes(b"%PDF fake")
+        return p
+
+    def set_status(self, order_id, status):
+        self.posted.append((order_id, status))
 
 
-def test_get_order_initial_status_received(svc):
+class FakeLightBurn:
+    def __init__(self):
+        self.loaded = []
+
+    def is_running(self):
+        return True
+
+    def load_file(self, path):
+        self.loaded.append(path)
+
+
+class MemState:
+    def __init__(self):
+        self._k = {}
+
+    def engraved_keys(self, n):
+        return set(self._k.get(n, set()))
+
+    def mark_engraved(self, n, key, engraved):
+        s = self._k.setdefault(n, set())
+        s.add(key) if engraved else s.discard(key)
+
+
+def _svc(gw=None, tmp=Path(".")):
+    gw = gw or FakeGateway([_order()])
+    return FulfillmentService(gateway=gw, state=MemState(),
+                              lightburn=FakeLightBurn(), cache_dir=tmp), gw
+
+
+def test_list_orders_shapes_cards(tmp_path):
+    svc, _ = _svc(tmp=tmp_path)
+    res = svc.list_orders()
+    assert res["error"] is None
+    [card] = res["orders"]
+    assert card["order_number"] == "306-1"
+    assert card["status"] == "not_done_yet"
+    assert card["gift_box"] is True
+    assert card["progress"] == {"done": 0, "total": 2}
+
+
+def test_engrave_downloads_then_opens_lightburn(tmp_path):
+    gw = FakeGateway([_order()])
+    svc = FulfillmentService(gateway=gw, state=MemState(),
+                             lightburn=(lb := FakeLightBurn()), cache_dir=tmp_path)
+    res = svc.engrave_side("306-1", "engraving/x Front.pdf")
+    assert res["ok"] is True
+    assert gw.downloads == [("uuid-1", "engraving/x Front.pdf")]
+    assert lb.loaded and str(lb.loaded[0]).endswith("job.pdf")
+    assert res["progress"] == {"done": 1, "total": 2}
+
+
+def test_engrave_rejects_unknown_key(tmp_path):
+    svc, _ = _svc(tmp=tmp_path)
+    res = svc.engrave_side("306-1", "nope.pdf")
+    assert res["ok"] is False
+
+
+def test_ship_requires_all_engraved_then_posts_done(tmp_path):
+    gw = FakeGateway([_order()])
+    svc = FulfillmentService(gateway=gw, state=MemState(),
+                             lightburn=FakeLightBurn(), cache_dir=tmp_path)
+    assert svc.ship_order("306-1")["ok"] is False           # nothing engraved yet
+    svc.engrave_side("306-1", "engraving/x Front.pdf")
+    svc.engrave_side("306-1", "engraving/x Back.pdf")
+    res = svc.ship_order("306-1")
+    assert res["ok"] is True
+    assert gw.posted == [("uuid-1", OrderStatus.DONE)]
+
+
+def test_flag_revision_posts_revision(tmp_path):
+    gw = FakeGateway([_order()])
+    svc = FulfillmentService(gateway=gw, state=MemState(),
+                             lightburn=FakeLightBurn(), cache_dir=tmp_path)
+    assert svc.flag_revision("306-1")["ok"] is True
+    assert gw.posted == [("uuid-1", OrderStatus.REVISION)]
+
+
+def test_get_order_marks_engraved_sides(tmp_path):
+    gw = FakeGateway([_order()])
+    svc = FulfillmentService(gateway=gw, state=MemState(),
+                             lightburn=FakeLightBurn(), cache_dir=tmp_path)
+    svc.engrave_side("306-1", "engraving/x Front.pdf")
     detail = svc.get_order("306-1")
-    assert detail["status"] == "received"
-    assert detail["progress"] == {"done": 0, "total": 2}
-    assert detail["gift_box"] is True
+    sides = detail["products"][0]["sides"]
+    assert sides[0] == {"name": "Front", "file_key": "engraving/x Front.pdf", "engraved": True}
+    assert sides[1]["engraved"] is False
+    assert detail["instruction"] == "With Gift Box each"
 
 
-def test_engrave_side_opens_pdf_and_marks_done(svc):
-    res = svc.engrave_side("306-1", "A", "Front")
-    assert res["ok"] is True
-    assert res["status"] == "engraving"
-    assert svc.lightburn.loaded[-1].name == "306-1-A-Front.pdf"
-
-
-def test_engrave_all_sides_flips_to_engraved(svc):
-    svc.engrave_side("306-1", "A", "Front")
-    res = svc.engrave_side("306-1", "A", "Back")
-    assert res["status"] == "engraved"
-
-
-def test_ship_blocked_until_all_engraved(svc):
-    blocked = svc.ship_order("306-1")
-    assert blocked["ok"] is False
-    svc.engrave_side("306-1", "A", "Front")
-    svc.engrave_side("306-1", "A", "Back")
-    ok = svc.ship_order("306-1")
-    assert ok["ok"] is True
-    assert svc.get_order("306-1")["status"] == "shipped"
-
-
-def test_engrave_missing_pdf_returns_error(svc):
-    res = svc.engrave_side("306-2", "A", "Front")
-    assert res["ok"] is True
-    bad = svc.engrave_side("306-1", "A", "Nonexistent")
-    assert bad["ok"] is False
-    assert "side" in bad["error"].lower()
-
-
-def test_set_status_hold_then_clear(svc):
-    svc.set_status("306-1", "hold")
-    assert svc.get_order("306-1")["status"] == "hold"
-    svc.set_status("306-1", "received")
-    assert svc.get_order("306-1")["status"] == "received"
-
-
-def test_add_comment_round_trips(svc):
-    svc.add_comment("306-1", "re-engrave back")
-    assert svc.get_order("306-1")["comments"][0]["text"] == "re-engrave back"
-
-
-def test_label_path_returns_existing_file(svc, tmp_path):
-    label = tmp_path / "orders" / "labels" / "306-1.pdf"
-    label.parent.mkdir(parents=True, exist_ok=True)
-    label.write_bytes(b"%PDF-1.4\n%%EOF\n")
-    got = svc.label_path("306-1")
-    assert got is not None and got.endswith("306-1.pdf")
-    assert svc.label_path("306-2") is None  # 306-2 has no label
-
-
-def test_list_filters_open_and_shipped(svc):
-    # Ship 306-2 (single side) so it leaves the open queue.
-    svc.engrave_side("306-2", "A", "Front")
-    svc.ship_order("306-2")
-    open_nums = [c["order_number"] for c in svc.list_orders(filter="open", query="")]
-    shipped_nums = [c["order_number"] for c in svc.list_orders(filter="shipped", query="")]
-    assert "306-2" not in open_nums
-    assert open_nums == ["306-1"]
-    assert shipped_nums == ["306-2"]
+def test_list_orders_reports_gateway_error(tmp_path):
+    class Boom:
+        def list_orders(self):
+            from lbb.ports.engraving import EngravingApiError
+            raise EngravingApiError("API key rejected", status_code=401)
+    svc = FulfillmentService(gateway=Boom(), state=MemState(),
+                             lightburn=FakeLightBurn(), cache_dir=tmp_path)
+    res = svc.list_orders()
+    assert res["orders"] == []
+    assert "rejected" in res["error"]

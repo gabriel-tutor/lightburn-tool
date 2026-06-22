@@ -1,9 +1,9 @@
 """FulfillmentService — the order-fulfillment brain.
 
-Merges read-only orders (FulfillmentRepository) with mutable progress
-(FulfillmentStateStore), derives status, and dispatches per-side PDFs to
-LightBurn via the direct-open path. Returns JSON-serialisable view models the
-web bridge passes straight to the front-end. Knows nothing about pywebview.
+Reads orders from the live EngravingGateway, merges local engraving progress
+(FulfillmentStateStore), downloads each engraving PDF fresh and opens it in
+LightBurn, and writes the 3 canonical statuses back. Returns JSON-serialisable
+view models for the web bridge. Knows nothing about pywebview or HTTP.
 """
 
 from __future__ import annotations
@@ -14,22 +14,18 @@ from lbb.core.errors import LbbError
 from lbb.core.fulfillment import (
     FulfillmentOrder,
     OrderStatus,
-    Side,
     all_sides,
-    derive_status,
     queue_sort_key,
 )
-from lbb.ports.fulfillment import FulfillmentRepository, FulfillmentStateStore
+from lbb.ports.engraving import EngravingApiError, EngravingGateway
+from lbb.ports.fulfillment import FulfillmentStateStore
 from lbb.ports.lightburn import LightBurnPort
 
-_OPERATOR = "A. Fink"
-_BUCKETS = {"Bracelet": "Bracelets", "Necklace": "Necklaces",
-            "Keychain": "Keychains", "Flask": "Flasks"}
+_BUCKETS = {"Bracelet": "Bracelets", "Necklace": "Necklaces", "Keychain": "Keychains",
+            "Flask": "Flasks", "MiniFlask": "Mini flasks", "Lighter": "Lighters"}
 
 
 def _placed_label(o: FulfillmentOrder) -> str:
-    """Human date like 'Jan 3, 2026' — portable across OSes (no %-d, which
-    raises on Windows)."""
     if not o.placed_at:
         return ""
     return f"{o.placed_at:%b} {o.placed_at.day}, {o.placed_at:%Y}"
@@ -39,24 +35,28 @@ class FulfillmentService:
     def __init__(
         self,
         *,
-        repo: FulfillmentRepository,
+        gateway: EngravingGateway,
         state: FulfillmentStateStore,
         lightburn: LightBurnPort,
+        cache_dir: Path,
     ):
-        self.repo = repo
+        self.gateway = gateway
         self.state = state
         self.lightburn = lightburn
+        self.cache_dir = Path(cache_dir)
 
     # ── queries ───────────────────────────────────────────────────────────
-    def list_orders(self, *, filter: str = "all", query: str = "") -> list[dict]:  # noqa: A002
+    def list_orders(self, *, filter: str = "all", query: str = "") -> dict:  # noqa: A002
+        try:
+            orders = sorted(self.gateway.list_orders(), key=queue_sort_key)
+        except EngravingApiError as e:
+            return {"orders": [], "error": str(e)}
         q = (query or "").lower().replace(" ", "")
-        orders = sorted(self.repo.list_all(), key=queue_sort_key)
         out: list[dict] = []
         for o in orders:
-            status = self._status(o)
-            if filter == "open" and status is OrderStatus.SHIPPED:
+            if filter == "open" and o.status is OrderStatus.DONE:
                 continue
-            if filter == "shipped" and status is not OrderStatus.SHIPPED:
+            if filter == "done" and o.status is not OrderStatus.DONE:
                 continue
             if q and q not in o.order_number.lower().replace(" ", ""):
                 continue
@@ -68,134 +68,124 @@ class FulfillmentService:
                 "primary_type": primary,
                 "product_summary": self._summary(o),
                 "placed_label": _placed_label(o),
-                "status": str(status),
+                "status": str(o.status),
                 "gift_box": o.gift_box,
                 "progress": {"done": done, "total": total},
             })
-        return out
+        return {"orders": out, "error": None}
 
     def get_order(self, order_number: str) -> dict | None:
-        o = self.repo.get(order_number)
+        o = self.gateway.get(order_number)
         if o is None:
             return None
-        engraved = self.state.engraved_sides(order_number)
+        engraved = self.state.engraved_keys(order_number)
         done, total = self._progress(o)
         return {
             "order_number": o.order_number,
-            "recipient": {"name": o.recipient.name, "address": o.recipient.address},
+            "amount": o.amount,
             "channel": o.channel,
             "amazon_url": o.amazon_url,
             "gift_box": o.gift_box,
+            "instruction": o.instruction,
             "placed_label": _placed_label(o),
-            "label": ({"carrier": o.label.carrier, "has_pdf": bool(o.label.pdf_path)}
-                      if o.label else None),
-            "status": str(self._status(o)),
+            "has_label": bool(o.label_key),
+            "status": str(o.status),
             "progress": {"done": done, "total": total},
             "products": [
                 {
-                    "item_id": p.item_id, "name": p.name, "product_type": p.product_type,
-                    "color": p.color, "qty": p.qty, "sku": p.sku.value,
-                    "instructions_url": p.instructions_url,
+                    "product_type": p.product_type,
+                    "name": p.product_type,
+                    "color": p.coin_color,
+                    "band_color": p.band_color,
+                    "qty": p.qty,
+                    "image_key": p.image_key,
                     "sides": [
-                        {"name": s.name, "engraved": (p.item_id, s.name) in engraved}
+                        {"name": s.name, "file_key": s.file_key,
+                         "engraved": s.file_key in engraved}
                         for s in p.sides
                     ],
                 }
                 for p in o.products
-            ],
-            "comments": [
-                {"text": c.text, "author": c.author, "created_at": c.created_at}
-                for c in self.state.comments(order_number)
             ],
         }
 
     def lightburn_status(self) -> dict:
         return {"running": self.lightburn.is_running()}
 
-    def label_path(self, order_number: str) -> str | None:
-        o = self.repo.get(order_number)
-        if o and o.label and o.label.pdf_path and Path(o.label.pdf_path).is_file():
-            return o.label.pdf_path
-        return None
+    def label_file(self, order_number: str) -> Path | None:
+        o = self.gateway.get(order_number)
+        if not o or not o.label_key:
+            return None
+        try:
+            return self.gateway.download_file(o.order_id, o.label_key, self._dir(o))
+        except EngravingApiError:
+            return None
 
     # ── commands ──────────────────────────────────────────────────────────
-    def engrave_side(self, order_number: str, item_id: str, side_name: str) -> dict:
-        o = self.repo.get(order_number)
+    def engrave_side(self, order_number: str, file_key: str) -> dict:
+        o = self.gateway.get(order_number)
         if o is None:
             return {"ok": False, "error": "Order not found"}
-        side = self._find_side(o, item_id, side_name)
-        if side is None:
-            return {"ok": False, "error": f"Unknown product side: {item_id}/{side_name}"}
-        if not side.pdf_path or not Path(side.pdf_path).is_file():
-            return {"ok": False, "error": "Design file not found for this side"}
+        if file_key not in all_sides(o):
+            return {"ok": False, "error": "Unknown engraving file"}
         try:
-            self.lightburn.load_file(Path(side.pdf_path))
-        except LbbError as e:
+            pdf = self.gateway.download_file(o.order_id, file_key, self._dir(o))
+            self.lightburn.load_file(pdf)
+        except (EngravingApiError, LbbError) as e:
             return {"ok": False, "error": str(e)}
-        self.state.mark_side(order_number, item_id, side_name, True)
+        self.state.mark_engraved(order_number, file_key, True)
         done, total = self._progress(o)
-        return {
-            "ok": True,
-            "status": str(self._status(o)),
-            "progress": {"done": done, "total": total},
-        }
+        return {"ok": True, "status": str(o.status),
+                "progress": {"done": done, "total": total}}
+
+    def ship_order(self, order_number: str) -> dict:
+        o = self.gateway.get(order_number)
+        if o is None:
+            return {"ok": False, "error": "Order not found"}
+        done, total = self._progress(o)
+        if done != total or total == 0:
+            return {"ok": False, "error": "Engrave all sides first"}
+        try:
+            self.gateway.set_status(o.order_id, OrderStatus.DONE)
+        except EngravingApiError as e:
+            return {"ok": False, "error": str(e)}
+        return {"ok": True, "status": str(OrderStatus.DONE)}
+
+    def flag_revision(self, order_number: str) -> dict:
+        return self._write_status(order_number, OrderStatus.REVISION)
 
     def set_status(self, order_number: str, status: str) -> dict:
-        o = self.repo.get(order_number)
-        if o is None:
-            return {"ok": False, "error": "Order not found"}
+        if status == OrderStatus.DONE:
+            return self.ship_order(order_number)
         try:
             target = OrderStatus(status)
         except ValueError:
             return {"ok": False, "error": f"Unknown status: {status}"}
-        if target is OrderStatus.SHIPPED:
-            return self.ship_order(order_number)
-        if target is OrderStatus.HOLD:
-            self.state.set_override(order_number, OrderStatus.HOLD)
-        else:
-            self.state.set_override(order_number, None)  # back to derived
-        # status is re-derived live (override + engraved state), not echoed from the input
-        return {"ok": True, "status": str(self._status(o))}
-
-    def ship_order(self, order_number: str) -> dict:
-        o = self.repo.get(order_number)
-        if o is None:
-            return {"ok": False, "error": "Order not found"}
-        done, total = self._progress(o)
-        if done != total:
-            return {"ok": False, "error": "Engrave all sides first"}
-        self.state.set_override(order_number, OrderStatus.SHIPPED)
-        return {"ok": True, "status": str(OrderStatus.SHIPPED)}
-
-    def add_comment(self, order_number: str, text: str) -> dict:
-        if not text.strip():
-            return {"ok": False, "error": "Empty comment"}
-        self.state.add_comment(order_number, text.strip(), _OPERATOR)
-        return {"ok": True}
+        return self._write_status(order_number, target)
 
     # ── helpers ───────────────────────────────────────────────────────────
-    def _status(self, o: FulfillmentOrder) -> OrderStatus:
-        return derive_status(o, engraved=self.state.engraved_sides(o.order_number),
-                             override=self.state.get_override(o.order_number))
+    def _write_status(self, order_number: str, status: OrderStatus) -> dict:
+        o = self.gateway.get(order_number)
+        if o is None:
+            return {"ok": False, "error": "Order not found"}
+        try:
+            self.gateway.set_status(o.order_id, status)
+        except EngravingApiError as e:
+            return {"ok": False, "error": str(e)}
+        return {"ok": True, "status": str(status)}
 
     def _progress(self, o: FulfillmentOrder) -> tuple[int, int]:
         total = all_sides(o)
-        done = self.state.engraved_sides(o.order_number) & total
+        done = self.state.engraved_keys(o.order_number) & total
         return (len(done), len(total))
 
-    @staticmethod
-    def _find_side(o: FulfillmentOrder, item_id: str, side_name: str) -> Side | None:
-        for p in o.products:
-            if p.item_id == item_id:
-                for s in p.sides:
-                    if s.name == side_name:
-                        return s
-        return None
+    def _dir(self, o: FulfillmentOrder) -> Path:
+        return self.cache_dir / o.order_number
 
     @staticmethod
     def _summary(o: FulfillmentOrder) -> str:
         if not o.products:
             return ""
+        head = o.products[0].product_type
         n = len(o.products)
-        head = o.products[0].name
         return head if n == 1 else f"{head} +{n - 1}"
