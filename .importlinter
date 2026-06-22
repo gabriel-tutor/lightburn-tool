@@ -8,13 +8,13 @@ source_modules =
     lbb.core
 forbidden_modules =
     lbb.adapters
-    lbb.ui
+    lbb.web
     lbb.app
 
-[importlinter:contract:ui-isolation]
-name = ui/ cannot reach adapters directly
+[importlinter:contract:web-isolation]
+name = web/ cannot reach adapters directly
 type = forbidden
 source_modules =
-    lbb.ui
+    lbb.web
 forbidden_modules =
     lbb.adapters

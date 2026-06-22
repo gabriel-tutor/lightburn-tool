@@ -13,36 +13,31 @@
 
 import sys
 from pathlib import Path
+from PyInstaller.utils.hooks import collect_all
 
 REPO_ROOT = Path(SPECPATH).resolve().parent
 SRC = REPO_ROOT / "src"
-ASSETS = SRC / "lbb" / "ui" / "assets"
+ASSETS = SRC / "lbb" / "web" / "assets"
 
 block_cipher = None
+
+webview_datas, webview_binaries, webview_hiddenimports = collect_all('webview')
 
 a = Analysis(
     [str(SRC / "lbb" / "__main__.py")],
     pathex=[str(SRC)],
-    binaries=[],
+    binaries=webview_binaries,
     datas=[
-        # Bundle the QSS as package data — importlib.resources reads it from here.
-        (str(SRC / "lbb" / "ui" / "theme" / "app.qss"), "lbb/ui/theme"),
+        # Web shell assets.
+        (str(ASSETS / "index.html"), "lbb/web/assets"),
+        (str(ASSETS / "app.css"), "lbb/web/assets"),
+        (str(ASSETS / "app.js"), "lbb/web/assets"),
+        (str(ASSETS / "bridge-client.js"), "lbb/web/assets"),
         # Brand assets (Flanacom icon + header logo).
-        (str(ASSETS / "flanacom.ico"), "lbb/ui/assets"),
-        (str(ASSETS / "flanacom-logo.png"), "lbb/ui/assets"),
-        # Seed data for the simulated order backend (folder + per-item PDFs).
-        (str(ASSETS / "seed-orders" / "orders.json"),
-            "lbb/ui/assets/seed-orders"),
-        (str(ASSETS / "seed-orders" / "305-A-john.pdf"),
-            "lbb/ui/assets/seed-orders"),
-        (str(ASSETS / "seed-orders" / "305-B-jane.pdf"),
-            "lbb/ui/assets/seed-orders"),
-        (str(ASSETS / "seed-orders" / "305-C-giftcard.pdf"),
-            "lbb/ui/assets/seed-orders"),
-        (str(ASSETS / "seed-orders" / "304-A-roman.pdf"),
-            "lbb/ui/assets/seed-orders"),
-    ],
-    hiddenimports=[],
+        (str(ASSETS / "flanacom.ico"), "lbb/web/assets"),
+        (str(ASSETS / "flanacom-logo.png"), "lbb/web/assets"),
+    ] + webview_datas,
+    hiddenimports=webview_hiddenimports,
     hookspath=[],
     runtime_hooks=[],
     excludes=[
@@ -62,7 +57,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name="Flanacom Tool",
+    name="Fulfillment Studio",
     icon=str(ASSETS / "flanacom.ico"),
     debug=False,
     bootloader_ignore_signals=False,
@@ -79,13 +74,13 @@ coll = COLLECT(
     strip=False,
     upx=False,
     upx_exclude=[],
-    name="Flanacom Tool",
+    name="Fulfillment Studio",
 )
 
 if sys.platform == "darwin":
     app = BUNDLE(
         coll,
-        name="Flanacom Tool.app",
+        name="Fulfillment Studio.app",
         bundle_identifier="com.flanacom.tool",
         icon=str(ASSETS / "flanacom.ico"),
         info_plist={

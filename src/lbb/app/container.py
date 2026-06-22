@@ -5,13 +5,16 @@ goes through build_pipeline_deps() so the wiring lives in exactly one file.
 """
 
 from dataclasses import dataclass
-from importlib.resources import files
 from pathlib import Path
 
-from lbb.adapters.json_orders import JsonOrderRepository
+from lbb.adapters.config import ApiConfig
+from lbb.adapters.engraving_api import EngravingApiClient
+from lbb.adapters.http_urllib import UrllibTransport
 from lbb.adapters.lightburn_shell import LightBurnShellAdapter
 from lbb.adapters.pdfium_reader import PdfiumReader
 from lbb.adapters.sqlite_repo import SqliteProfileRepository
+from lbb.adapters.sqlite_state import SqliteStateStore
+from lbb.app.fulfillment_service import FulfillmentService
 from lbb.app.pipeline import PipelineDeps
 from lbb.ports.lightburn import LightBurnPort
 
@@ -39,17 +42,21 @@ def _select_lightburn() -> LightBurnPort:
 
 def build_pipeline_deps(paths: AppPaths) -> PipelineDeps:
     """Return a PipelineDeps wired with production adapters."""
-    orders_repo: JsonOrderRepository | None = None
-    if paths.orders_dir is not None:
-        # Bundled seed-orders folder lives inside the package so
-        # importlib.resources finds it both in dev and in the PyInstaller
-        # one-folder bundle.
-        seed_dir = Path(str(files("lbb.ui.assets") / "seed-orders"))
-        orders_repo = JsonOrderRepository(paths.orders_dir, seed_dir=seed_dir)
     return PipelineDeps(
         repo=SqliteProfileRepository(paths.db_path),
         pdf=PdfiumReader(),
         lightburn=_select_lightburn(),
         temp_dir=paths.temp_dir,
-        orders=orders_repo,
+    )
+
+
+def build_fulfillment_service(
+    config: ApiConfig, state_db: Path, cache_dir: Path
+) -> FulfillmentService:
+    gateway = EngravingApiClient(config.base_url, config.api_key, UrllibTransport())
+    return FulfillmentService(
+        gateway=gateway,
+        state=SqliteStateStore(state_db),
+        lightburn=LightBurnShellAdapter(),
+        cache_dir=cache_dir,
     )

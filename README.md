@@ -1,29 +1,24 @@
-# LightBurn Bridge
+# Fulfillment Studio
 
-A cross-platform desktop tool that loads PDFs into LightBurn with the correct material/speed/power settings auto-applied based on the product SKU encoded in the filename. Operator confirms on screen and presses Start on the laser.
+An order-fulfillment dashboard desktop app for a laser-engraving workshop. Operators see all pending orders grouped by product type, click to open a side's design PDF in LightBurn, mark engraved sides, and ship orders — all in a pywebview window backed by the existing direct-open LightBurn engine.
 
 ## Status
 
-MVP complete — 101 tests passing, end-to-end verified against LightBurn Pro 2.0.05 on macOS, Windows path documented. See [HANDOFF.md](HANDOFF.md) for the full status, gaps, and Windows-setup walkthrough.
+126 tests passing, 4 skipped. Fulfillment Studio UI live on `feature/fulfillment-studio`. See [HANDOFF.md](HANDOFF.md) for the full operating guide, architecture, and troubleshooting.
 
 ## Documentation
 
-- **Handoff (start here):** [`HANDOFF.md`](HANDOFF.md) — Windows setup, what's built, what's not, operating guide, troubleshooting
-- **Design:** [`docs/plans/2026-05-16-lightburn-bridge-design.md`](docs/plans/2026-05-16-lightburn-bridge-design.md)
-- **MVP plan:** [`docs/plans/2026-05-16-lightburn-bridge-mvp-plan.md`](docs/plans/2026-05-16-lightburn-bridge-mvp-plan.md)
+- **Handoff (start here):** [`HANDOFF.md`](HANDOFF.md) — Windows setup, operating guide, architecture, troubleshooting
 - **Designer PDF spec:** [`docs/designer-pdf-spec.md`](docs/designer-pdf-spec.md)
 - **Windows build details:** [`docs/build-windows.md`](docs/build-windows.md)
 
 ## Development
 
 ```bash
-# install core deps (engine, tests, lint) — fast
-uv sync
+# install deps
+uv sync --dev
 
-# install UI deps (PySide6, ~420MB) — slower, only needed to run the app
-uv sync --extra ui
-
-# run app (requires --extra ui synced first)
+# run the app from source (opens the pywebview dashboard window)
 uv run python -m lbb
 
 # tests
@@ -36,22 +31,20 @@ uv run lint-imports
 
 ## Architecture
 
-Hexagonal (core / ports / adapters / app / ui). Python 3.12, PySide6, lxml, pypdfium2, SQLite. Single language, single process.
+Hexagonal (core / ports / adapters / app) plus a `web/` layer (pywebview window + `JsApiBridge` + HTML/CSS/JS assets). Python 3.12, pywebview (Edge WebView2 on Windows), SQLite. Single language, single process.
 
 ## Building a distributable binary
 
 ```bash
-uv sync --extra ui --dev
+uv sync --dev
 uv run pyinstaller packaging/lbb.spec --clean --noconfirm
-
-# macOS  → open "dist/LightBurn Bridge.app"
-# Linux/Windows → run "dist/LightBurn Bridge/LightBurn Bridge"
+# Windows → dist\Fulfillment Studio\Fulfillment Studio.exe
 ```
 
 **Windows builds must happen on a Windows host** — PyInstaller doesn't
-cross-compile. See [`docs/build-windows.md`](docs/build-windows.md) for the
-three paths: build directly on a Windows laptop, use GitHub Actions to
-build remotely (artifact download), or run a Windows VM.
+cross-compile. See [`docs/build-windows.md`](docs/build-windows.md) for
+details.
 
-The macOS bundle is currently unsigned. For distribution to client machines, code-sign with `codesign` and notarize via `notarytool` before shipping.
+The bundle is currently unsigned. For client distribution, Authenticode-sign
+the `.exe` on Windows to suppress SmartScreen warnings.
 

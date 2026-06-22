@@ -8,23 +8,29 @@ import pytest
 from lbb.adapters.lightburn_shell import LightBurnShellAdapter
 
 
+# exe_path=None forces the OS-default fallback path so these assert the shell
+# command regardless of whether LightBurn is installed on the test host. The
+# file arg is compared via str(Path(...)) so the separator matches the host OS.
 def test_open_command_for_macos():
-    adapter = LightBurnShellAdapter(app_name="LightBurn")
-    cmd = adapter._open_command(Path("/tmp/x.lbrn2"), platform="darwin")
-    assert cmd == ["open", "-a", "LightBurn", "/tmp/x.lbrn2"]
+    adapter = LightBurnShellAdapter(app_name="LightBurn", exe_path=None)
+    p = Path("/tmp/x.lbrn2")
+    cmd = adapter._open_command(p, platform="darwin")
+    assert cmd == ["open", "-a", "LightBurn", str(p)]
 
 
 def test_open_command_for_windows():
-    adapter = LightBurnShellAdapter(app_name="LightBurn")
-    cmd = adapter._open_command(Path("/tmp/x.lbrn2"), platform="win32")
+    adapter = LightBurnShellAdapter(app_name="LightBurn", exe_path=None)
+    p = Path("/tmp/x.lbrn2")
+    cmd = adapter._open_command(p, platform="win32")
     # Windows: 'start' needs an empty title arg to handle paths with spaces.
-    assert cmd == ["cmd", "/c", "start", "", "/tmp/x.lbrn2"]
+    assert cmd == ["cmd", "/c", "start", "", str(p)]
 
 
 def test_open_command_for_linux():
-    adapter = LightBurnShellAdapter(app_name="LightBurn")
-    cmd = adapter._open_command(Path("/tmp/x.lbrn2"), platform="linux")
-    assert cmd == ["xdg-open", "/tmp/x.lbrn2"]
+    adapter = LightBurnShellAdapter(app_name="LightBurn", exe_path=None)
+    p = Path("/tmp/x.lbrn2")
+    cmd = adapter._open_command(p, platform="linux")
+    assert cmd == ["xdg-open", str(p)]
 
 
 def test_is_running_returns_true_when_pgrep_succeeds():
@@ -155,6 +161,9 @@ def test_load_file_uses_popen_not_run():
 def test_status_reflects_is_running():
     with patch("subprocess.run") as mock_run:
         mock_run.return_value.returncode = 0
+        # stdout must contain the image name for the Windows tasklist path;
+        # POSIX hosts key off returncode==0. Setting both keeps it host-agnostic.
+        mock_run.return_value.stdout = "LightBurn.exe 1234 Console 1 45,000 K\n"
         adapter = LightBurnShellAdapter()
         assert adapter.status().running
 
