@@ -15,6 +15,7 @@ from enum import StrEnum
 
 _TYPE_ORDER = ("Bracelet", "Necklace", "Keychain", "Flask", "MiniFlask", "Lighter")
 _UNKNOWN_TYPE_RANK = len(_TYPE_ORDER) + 1
+_SIDES_PER_COIN = 2  # Front + Back
 _TYPE_NORMALIZE = {
     "bracelet": "Bracelet", "necklace": "Necklace", "keychain": "Keychain",
     "flask": "Flask", "mini_flask": "MiniFlask", "lighter": "Lighter",
@@ -48,6 +49,7 @@ class Product:
     coin_color: str = ""         # color_coin_plate
     sides: tuple[Side, ...] = ()
     qty: int = 1
+    coin_count: int = 1          # number of coins/plates on this item
     image_key: str = ""
     multiple_coins: bool = False
     special_length: bool = False
@@ -65,6 +67,12 @@ class FulfillmentOrder:
     amazon_url: str = ""          # link_to_order
     label_key: str = ""           # shipping_label_path (signed_urls key)
     placed_at: datetime | None = None
+    link_to_graphic: str = ""     # order-level link_to_graphic (often null)
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+    order_picture_key: str = ""   # order-level product_picture_path (often null)
+    type_summary: str = ""        # order-level product_type (normalized)
+    color_summary: str = ""       # order-level color
     channel: str = "Amazon · DE"
 
     @property
@@ -77,6 +85,23 @@ def all_sides(order: FulfillmentOrder) -> set[str]:
     return {s.file_key for p in order.products for s in p.sides if s.file_key}
 
 
+def sides_summary(product: Product) -> str:
+    """Human description of a product's engraving jobs."""
+    n = len(product.sides)
+    if n == 0:
+        return "No engraving files"
+    coins = max(product.coin_count, 1)
+    if coins == 1:
+        if n == _SIDES_PER_COIN:
+            return "Front & Back"
+        return "Front only" if n == 1 else f"{n} engraving jobs"
+    if n == coins * _SIDES_PER_COIN:
+        return f"{coins} coins · Front & Back each — {n} jobs"
+    if n == coins:
+        return f"{coins} coins · Front only — {n} jobs"
+    return f"{coins} coins · {n} engraving jobs"
+
+
 def type_rank(product_type: str) -> int:
     """Position in the workshop queue; unknown types sort last."""
     try:
@@ -87,6 +112,6 @@ def type_rank(product_type: str) -> int:
 
 def queue_sort_key(order: FulfillmentOrder) -> tuple[int, str]:
     """Group by product-type rank (first product), then oldest placed first."""
-    primary = order.products[0].product_type if order.products else "Other"
+    primary = order.products[0].product_type if order.products else (order.type_summary or "Other")
     placed = order.placed_at.isoformat() if order.placed_at else ""
     return (type_rank(primary), placed)

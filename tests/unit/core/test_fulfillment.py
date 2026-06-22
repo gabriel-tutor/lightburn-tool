@@ -8,6 +8,7 @@ from lbb.core.fulfillment import (
     all_sides,
     normalize_type,
     queue_sort_key,
+    sides_summary,
     type_rank,
 )
 
@@ -62,3 +63,39 @@ def test_queue_sort_key_groups_by_type_then_date():
     early = _order(order_number="A", placed_at=datetime(2026, 6, 1))
     late = _order(order_number="B", placed_at=datetime(2026, 6, 9))
     assert queue_sort_key(early) < queue_sort_key(late)
+
+
+def test_sides_summary_single_coin():
+    p = Product(product_type="Necklace",
+                sides=(Side("Front", "a"), Side("Back", "b")), coin_count=1)
+    assert sides_summary(p) == "Front & Back"
+
+
+def test_sides_summary_front_only():
+    p = Product(product_type="Keychain", sides=(Side("Front", "a"),), coin_count=1)
+    assert sides_summary(p) == "Front only"
+
+
+def test_sides_summary_multiple_coins():
+    p = Product(product_type="Necklace",
+                sides=(Side("Coin 1 Front", "a"), Side("Coin 1 Back", "b"),
+                       Side("Coin 2 Front", "c"), Side("Coin 2 Back", "d")),
+                coin_count=2)
+    assert sides_summary(p) == "2 coins · Front & Back each — 4 jobs"
+
+
+def test_sides_summary_no_sides():
+    p = Product(product_type="Necklace", sides=(), coin_count=0)
+    assert sides_summary(p) == "No engraving files"
+
+
+def test_new_order_fields_default_empty():
+    o = _order()
+    assert o.link_to_graphic == ""
+    assert o.created_at is None and o.updated_at is None
+    assert o.order_picture_key == "" and o.type_summary == "" and o.color_summary == ""
+
+
+def test_queue_sort_falls_back_to_type_summary_when_no_products():
+    o = FulfillmentOrder(order_id="x", order_number="A", products=(), type_summary="Flask")
+    assert queue_sort_key(o)[0] == type_rank("Flask")
