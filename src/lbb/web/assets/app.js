@@ -16,8 +16,6 @@ function productSVG(type,color){
   return '<svg viewBox="0 0 200 150" xmlns="http://www.w3.org/2000/svg">'+DEFS+shape+'</svg>';
 }
 
-const TYPE_ORDER=['Bracelet','Necklace','Keychain','Flask'];
-
 /* ===== live data state ===== */
 let ORDERS = [];     // dashboard cards from the backend
 let CURRENT = null;  // full order detail for the open order
@@ -40,8 +38,6 @@ function statusOf(o){
   const labels = {not_done_yet:'Open', graviert_verschickt:'Engraved & shipped', revision:'Needs review'};
   return {key, label: labels[key] || key};
 }
-
-function plural(t){ return ({Bracelet:'Bracelets',Necklace:'Necklaces',Keychain:'Keychains',Flask:'Flasks'})[t]||t+'s'; }
 
 /* ===== dashboard loader ===== */
 async function loadDashboard(){
@@ -81,7 +77,7 @@ function renderDashboard(){
       const b = card.bucket || 'Other';
       if(b!==lastBucket){
         const cnt=ORDERS.filter(c=>c.bucket===b).length;
-        html+='<div class="lgroup">'+plural(b)+' <span class="gc">'+cnt+'</span></div>';
+        html+='<div class="lgroup">'+b+' <span class="gc">'+cnt+'</span></div>';
         lastBucket=b;
       }
       const stKey = card.status || 'not_done_yet';
@@ -125,9 +121,19 @@ async function loadProductPhoto(orderNumber, idx){
   }
 }
 
+// Next order still needing work, from the FULL set (ignores the dashboard's
+// active filter — otherwise "Start engraving"/post-ship hop misfires when the
+// Shipped/To-do chip is active).
+async function firstOpenOrder(){
+  const res = await API.listOrders('all', '');
+  const list = (res && res.orders) || [];
+  const o = list.find(c => c.status !== 'graviert_verschickt');
+  return o ? o.order_number : null;
+}
+
 async function startEngraving(){
-  const first = ORDERS.find(c => c.status !== 'graviert_verschickt');
-  if(first){ await openOrder(first.order_number); toast('Starting with '+first.order_number); }
+  const n = await firstOpenOrder();
+  if(n){ await openOrder(n); toast('Starting with '+n); }
   else toast('No open orders to engrave','gold');
 }
 
@@ -284,8 +290,8 @@ async function confirmShip(){
   if(!res || !res.ok){ toast((res && res.error)||'Cannot ship','gold'); return; }
   toast('"'+orderNumber+'" shipped');
   await loadDashboard();
-  const first = ORDERS.find(c => c.status !== 'graviert_verschickt');
-  if(first){ await openOrder(first.order_number); }
+  const n = await firstOpenOrder();
+  if(n){ await openOrder(n); }
   else { goDashboard(); toast('All open orders done!'); }
 }
 
