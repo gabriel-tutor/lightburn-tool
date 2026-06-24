@@ -1,4 +1,9 @@
+import urllib.error
+
+import pytest
+
 from lbb.adapters.http_urllib import UrllibTransport
+from lbb.ports.engraving import EngravingApiError
 
 
 class _FakeOpener:
@@ -39,11 +44,6 @@ def test_request_sets_method_headers_body():
     assert req.get_header("X-api-key") == "secret"
 
 
-import urllib.error
-
-from lbb.ports.engraving import EngravingApiError
-
-
 class _FlakyOpener:
     """Fails the first `fail_n` calls with the given exception, then succeeds."""
     def __init__(self, fail_n, exc):
@@ -79,11 +79,8 @@ def test_retries_transient_url_error_then_succeeds():
 def test_gives_up_after_max_attempts():
     f = _FlakyOpener(5, urllib.error.URLError("down"))
     t = _transport(f)
-    try:
+    with pytest.raises(EngravingApiError):
         t.request("GET", "https://x/api", headers={})
-        assert False, "should have raised"
-    except EngravingApiError:
-        pass
     assert f.calls == 3  # capped at max_attempts
 
 
