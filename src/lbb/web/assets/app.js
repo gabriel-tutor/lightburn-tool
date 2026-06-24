@@ -382,6 +382,8 @@ async function confirmShip(){
     if(tok!==viewToken) return;              // operator navigated away mid-ship
     if(!res || !res.ok){ toast((res && res.error)||'Cannot ship','error'); return; }
     toast('"'+orderNumber+'" shipped');
+    busy=false;                              // ship done; the rest is navigation —
+                                             // clear busy so the next order's CTA renders enabled
     await loadDashboard();
     const n = await firstOpenOrder();
     if(n){ await openOrder(n); }
