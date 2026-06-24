@@ -104,6 +104,7 @@ function renderBanner(error){
 /* ===== views ===== */
 function showView(v){
   if(v==='dashboard') nextToken();          // abandon any in-flight order load
+  closeLbModal();                           // abandon any pending close-previous confirm on navigation
   document.getElementById('view-dashboard').hidden=v!=='dashboard';
   document.getElementById('view-order').hidden=v!=='order';
   document.getElementById('actionbar').style.display=v==='order'?'flex':'none';
@@ -327,7 +328,20 @@ function renderOrder(){
 /* ===== actions ===== */
 function setActive(i){ if(busy) return; active=i; renderOrder(); }
 
+let _pendingEngrave = null;
+function askClosePrev(onYes){ _pendingEngrave = onYes; document.getElementById('lbModalBg').classList.add('show'); }
+function closeLbModal(){ const m=document.getElementById('lbModalBg'); if(m) m.classList.remove('show'); _pendingEngrave = null; }
+function confirmClosePrev(){ const fn = _pendingEngrave; closeLbModal(); if(fn) fn(); }
+
 async function engrave(pi, si){
+  if(busy) return;
+  let running = false;
+  try { const s = await API.lightburnStatus(); running = !!(s && s.running); } catch(e){ running = false; }
+  if(running){ askClosePrev(() => runEngrave(pi, si, true)); return; }
+  runEngrave(pi, si, false);
+}
+
+async function runEngrave(pi, si, closePrevious){
   if(busy) return;
   const p = CURRENT.products[pi], side = p.sides[si];
   if(active!==pi){ active=pi; }
@@ -336,10 +350,10 @@ async function engrave(pi, si){
   if(engBtnEl) engBtnEl.classList.add('is-loading');
   const sideBtnEl=document.querySelectorAll('#sides .side .sbtn')[si];
   if(sideBtnEl) sideBtnEl.classList.add('is-loading');
-  document.getElementById('livePillText').textContent='Opening LightBurn…';
+  document.getElementById('livePillText').textContent = closePrevious ? 'Closing previous · opening LightBurn…' : 'Opening LightBurn…';
   const tok = viewToken;
   try {
-    const res = await API.engraveSide(CURRENT.order_number, side.file_key);
+    const res = await API.engraveSide(CURRENT.order_number, side.file_key, closePrevious);
     if(!res || !res.ok){ toast((res && res.error) || 'Engrave failed','error'); return; }
     const fresh = await API.getOrder(CURRENT.order_number);
     if(tok!==viewToken) return;              // operator navigated away
@@ -503,5 +517,6 @@ setInterval(pollLightBurn, 3000); pollLightBurn();
 /* ===== bootstrap ===== */
 window.addEventListener('pywebviewready', loadDashboard);
 document.addEventListener('DOMContentLoaded', () => { showView('dashboard'); });
-document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeModal(); });
+document.addEventListener('keydown', e=>{ if(e.key==='Escape'){ closeModal(); closeLbModal(); } });
 document.getElementById('modalBg').addEventListener('click', e=>{ if(e.target.id==='modalBg') closeModal(); });
+document.getElementById('lbModalBg').addEventListener('click', e=>{ if(e.target.id==='lbModalBg') closeLbModal(); });

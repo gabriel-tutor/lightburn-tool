@@ -44,8 +44,8 @@ class JsApiBridge:
         return self._svc.product_image(order_number, product_index)
 
     # ── commands ──
-    def engrave_side(self, order_number, file_key):
-        return self._svc.engrave_side(order_number, file_key)
+    def engrave_side(self, order_number, file_key, close_previous=False):
+        return self._svc.engrave_side(order_number, file_key, close_previous)
 
     def ship_order(self, order_number):
         return self._svc.ship_order(order_number)

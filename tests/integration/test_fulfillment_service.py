@@ -53,12 +53,17 @@ class FakeGateway:
 class FakeLightBurn:
     def __init__(self):
         self.loaded = []
+        self.events = []          # ordered: 'close' / ('load', path)
 
     def is_running(self):
         return True
 
     def load_file(self, path):
         self.loaded.append(path)
+        self.events.append(('load', path))
+
+    def close_running(self):
+        self.events.append('close')
 
 
 class MemState:
@@ -244,6 +249,41 @@ def test_engrave_side_lightburn_oserror_not_marked(tmp_path):
     res = svc.engrave_side("306-1", "engraving/x Front.pdf")
     assert res["ok"] is False
     assert state.engraved_keys("306-1") == set()   # NOT marked on failure
+
+
+def test_engrave_close_previous_closes_before_load(tmp_path):
+    gw = FakeGateway([_order()])
+    lb = FakeLightBurn()
+    svc = FulfillmentService(gateway=gw, state=MemState(),
+                             lightburn=lb, cache_dir=tmp_path)
+    res = svc.engrave_side("306-1", "engraving/x Front.pdf", close_previous=True)
+    assert res["ok"] is True
+    # close must happen, and strictly before the load
+    assert lb.events[0] == 'close'
+    assert lb.events[1][0] == 'load'
+
+
+def test_engrave_default_does_not_close(tmp_path):
+    gw = FakeGateway([_order()])
+    lb = FakeLightBurn()
+    svc = FulfillmentService(gateway=gw, state=MemState(),
+                             lightburn=lb, cache_dir=tmp_path)
+    svc.engrave_side("306-1", "engraving/x Front.pdf")          # default close_previous=False
+    assert 'close' not in lb.events
+    assert lb.loaded                                            # still loaded the pdf
+
+
+def test_engrave_close_skipped_when_download_fails(tmp_path):
+    class BoomGateway(FakeGateway):
+        def download_file(self, order_id, file_key, dest_dir):
+            raise EngravingApiError("network down")
+    gw = BoomGateway([_order()])
+    lb = FakeLightBurn()
+    svc = FulfillmentService(gateway=gw, state=MemState(),
+                             lightburn=lb, cache_dir=tmp_path)
+    res = svc.engrave_side("306-1", "engraving/x Front.pdf", close_previous=True)
+    assert res["ok"] is False
+    assert lb.events == []           # never closed LightBurn — download failed first
 
 
 def test_get_order_has_no_qty(tmp_path):
