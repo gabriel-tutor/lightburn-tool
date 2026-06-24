@@ -48,7 +48,6 @@ class Product:
     band_color: str = ""         # color_band_chain
     coin_color: str = ""         # color_coin_plate
     sides: tuple[Side, ...] = ()
-    qty: int = 1
     coin_count: int = 1          # number of coins/plates on this item
     image_key: str = ""
     multiple_coins: bool = False

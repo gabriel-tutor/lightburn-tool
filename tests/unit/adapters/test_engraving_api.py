@@ -200,3 +200,28 @@ def test_parse_sets_coin_count():
     t = FakeTransport([raw])
     [o] = _client(t).list_orders()
     assert o.products[0].coin_count == 2
+
+
+def test_download_refetches_on_expired_link_then_succeeds(tmp_path):
+    """A 403 on the signed URL forces one fresh GET + retry."""
+    state = {"download_calls": 0, "get_calls": 0}
+
+    class ExpiringTransport:
+        def request(self, method, url, *, headers, body=None):
+            if "/dl/" in url:
+                state["download_calls"] += 1
+                # First download attempt: link expired (403). After a re-GET, ok.
+                if state["download_calls"] == 1:
+                    return 403, b"expired"
+                return 200, b"%PDF-1.4 fresh"
+            if method == "GET":
+                state["get_calls"] += 1
+                return 200, json.dumps({"orders": [ORDER]}).encode()
+            return 404, b"{}"
+
+    c = EngravingApiClient(BASE, "secret", ExpiringTransport())
+    c.list_orders()                         # get_calls == 1, caches signed urls
+    p = c.download_file("uuid-1", "engraving/x Front.pdf", tmp_path)
+    assert p.read_bytes().startswith(b"%PDF")
+    assert state["download_calls"] == 2     # first 403, retried after re-GET
+    assert state["get_calls"] == 2          # one extra GET to mint fresh urls

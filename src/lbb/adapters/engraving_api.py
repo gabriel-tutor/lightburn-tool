@@ -29,6 +29,7 @@ from lbb.ports.engraving import EngravingApiError, EngravingGateway, HttpTranspo
 # Re-GET if the cached signed URLs are older than this (links live 1h; refresh early).
 _STALE_AFTER = 50 * 60.0
 _HTTP_OK = 200
+_EXPIRED_LINK_STATUS = frozenset({400, 403, 410})
 
 
 class EngravingApiClient(EngravingGateway):
@@ -59,17 +60,29 @@ class EngravingApiClient(EngravingGateway):
         return self._orders.get(order_number)
 
     def download_file(self, order_id: str, file_key: str, dest_dir: Path) -> Path:
-        url = self._fresh_url(order_id, file_key)
-        code, data = self._http.request("GET", url, headers={})
-        if code != _HTTP_OK:
-            raise EngravingApiError(
-                f"Download failed ({code}) for {file_key}", status_code=code
-            )
+        data = self._download_once(order_id, file_key)
         dest_dir = Path(dest_dir)
         dest_dir.mkdir(parents=True, exist_ok=True)
         dest = dest_dir / _safe_name(file_key)
         dest.write_bytes(data)
         return dest
+
+    def _download_once(self, order_id: str, file_key: str) -> bytes:
+        url = self._fresh_url(order_id, file_key)
+        code, data = self._http.request("GET", url, headers={})
+        if code in _EXPIRED_LINK_STATUS:
+            # Signed URL likely expired (TTL starts at server mint time, which our
+            # staleness timer can't see). Force fresh URLs and retry exactly once.
+            self._fetch()
+            url = self._signed.get(order_id, {}).get(file_key)
+            if not url:
+                raise EngravingApiError(f"No download URL for {file_key}")
+            code, data = self._http.request("GET", url, headers={})
+        if code != _HTTP_OK:
+            raise EngravingApiError(
+                f"Download failed ({code}) for {file_key}", status_code=code
+            )
+        return data
 
     def set_status(self, order_id: str, status: OrderStatus) -> None:
         body = json.dumps({"order_id": order_id, "status": str(status)}).encode()

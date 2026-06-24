@@ -23,7 +23,8 @@
     <div class="dash-head">
       <h1>Orders</h1>
       <span class="sub" id="dashSub"></span>
-      <button class="btn ghost" id="refreshBtn" onclick="loadDashboard()" title="Reload orders from Flanacom"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>Refresh</button>
+      <span class="dash-updated" id="dashUpdated"></span>
+      <button class="btn ghost" id="refreshBtn" onclick="doRefresh()" title="Reload orders from Flanacom"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>Refresh</button>
       <button class="cta primary" style="margin-left:auto" onclick="startEngraving()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><circle cx="11" cy="11" r="2"/></svg>
         Start engraving
@@ -33,7 +34,7 @@
     <div class="dash-tools">
       <div class="search">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-        <input id="searchInput" type="text" placeholder="Search by order number…" oninput="loadDashboard()" autocomplete="off">
+        <input id="searchInput" type="text" placeholder="Search by order number…" oninput="onSearchInput()" autocomplete="off">
       </div>
       <div class="chips" id="filterChips">
         <button class="chip active" data-f="all" onclick="setFilter('all')">All</button>
@@ -96,7 +97,7 @@
               <span class="ficon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7z"/><circle cx="5.5" cy="18.5" r="2"/><circle cx="18.5" cy="18.5" r="2"/></svg></span>
               <div class="fmeta"><div class="fn" id="labelCarrier">—</div><div class="fs mono" id="labelFile">label.pdf</div></div>
               <div class="fbtns">
-                <a class="fbtn" href="#" onclick="openLabel();return false;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14L21 3"/></svg>Open</a>
+                <button class="fbtn" onclick="openLabel()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14L21 3"/></svg>Open</button>
                 <button class="fbtn print" onclick="printLabel()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/></svg>Print</button>
               </div>
             </div>

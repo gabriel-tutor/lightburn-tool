@@ -234,6 +234,11 @@
   .toast{display:flex;align-items:center;gap:10px;font-size:13.5px;font-weight:600;color:#fff;background:rgba(23,26,33,.92);backdrop-filter:blur(10px);padding:11px 16px;border-radius:12px;box-shadow:var(--shadow);transform:translateY(12px);opacity:0;transition:.3s}
   .toast.show{transform:translateY(0);opacity:1}
   .toast svg{width:16px;height:16px;color:#7fe0a8} .toast.gold svg{color:#f2c970}
+  .toast.success svg{color:#2e9e5b}
+  .toast.error{border-color:#e6a3a3}
+  .toast.error svg{color:#d65745}
+  .toast.info svg{color:#2b6cb0}
+  .toast span{flex:1}
   [hidden]{display:none!important}
 
 /* live-API states */
@@ -268,3 +273,17 @@
 .flow.revision{border-color:#e6b877;background:#fff7ec}
 .flow-rev{display:flex;align-items:center;gap:8px;color:#a85b00;font-weight:600;font-size:13px;margin-left:auto}
 .flow-rev svg{width:16px;height:16px}
+@keyframes shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}
+.sk{background:#ece6da;background-image:linear-gradient(90deg,#ece6da 0,#f5f1e8 40px,#ece6da 80px);background-size:600px 100%;animation:shimmer 1.1s infinite linear;border-radius:8px;height:14px}
+.lrow.skel{pointer-events:none}
+.lrow.skel .sk-a{width:70%}.lrow.skel .sk-b{width:60%}.lrow.skel .sk-c{width:40%}.lrow.skel .sk-d{width:50%}
+.sk-photo{width:100%;height:100%;min-height:220px;border-radius:14px}
+.sk-row{height:18px;margin:8px 0;width:100%}
+.sk-side{height:54px;margin:8px 0;border-radius:12px}
+.api-banner{display:flex;align-items:center;gap:10px}
+.bnr-btn{font:inherit;font-size:12px;font-weight:600;padding:4px 10px;border-radius:8px;border:1px solid #d8a; background:#fff;cursor:pointer}
+.bnr-x{margin-left:auto;border:none;background:none;cursor:pointer;font-size:14px;color:inherit}
+.dash-updated{font-size:12px;color:var(--ink-faint);margin-left:8px}
+.empty.cheer{color:#2e9e5b}
+@keyframes sidepop{0%{transform:scale(.6);opacity:0}60%{transform:scale(1.15)}100%{transform:scale(1);opacity:1}}
+.side.done .sicon{animation:sidepop .35s ease}
