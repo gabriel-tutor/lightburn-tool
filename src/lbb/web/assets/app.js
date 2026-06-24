@@ -105,6 +105,7 @@ function renderBanner(error){
 function showView(v){
   if(v==='dashboard') nextToken();          // abandon any in-flight order load
   closeLbModal();                           // abandon any pending close-previous confirm on navigation
+  closeReModal();                           // abandon any pending re-engrave confirm on navigation
   document.getElementById('view-dashboard').hidden=v!=='dashboard';
   document.getElementById('view-order').hidden=v!=='order';
   document.getElementById('actionbar').style.display=v==='order'?'flex':'none';
@@ -277,7 +278,7 @@ function renderOrder(){
   document.getElementById('sideC').textContent=p.sides.filter(s=>s.engraved).length+' / '+p.sides.length+' done';
   document.getElementById('sides').innerHTML=p.sides.map((s,si)=>{
     const btn=s.engraved
-      ? '<button class="sbtn ok" onclick="engrave('+active+','+si+')" title="Re-open in LightBurn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>Engraved</button>'
+      ? '<span class="sact"><span class="sdone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>Engraved</span><button class="sbtn redo" title="Re-engrave" onclick="askReengrave('+active+','+si+')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg></button></span>'
       : '<button class="sbtn go" onclick="engrave('+active+','+si+')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/></svg>Engrave '+s.name.toLowerCase()+'</button>';
     return '<div class="side'+(s.engraved?' done':'')+'"><span class="sicon">'+s.name.slice(0,1)+'</span><div class="smeta"><div class="sn">'+s.name+'</div><div class="sf">LightBurn job · design file</div></div>'+btn+'</div>';
   }).join('');
@@ -333,6 +334,24 @@ function askClosePrev(onYes){ _pendingEngrave = onYes; document.getElementById('
 function closeLbModal(){ const m=document.getElementById('lbModalBg'); if(m) m.classList.remove('show'); _pendingEngrave = null; }
 function confirmClosePrev(){ const fn = _pendingEngrave; closeLbModal(); if(fn) fn(); }
 
+let _reSide = null;
+function askReengrave(pi, si){
+  if(busy) return;
+  const side = CURRENT.products[pi].sides[si];
+  _reSide = {pi, si};
+  const t = document.getElementById('reText');
+  if(t) t.textContent = 'Re-engrave ' + side.name + '? The design will reopen in LightBurn for another run.';
+  const m = document.getElementById('reModalBg'); if(m) m.classList.add('show');
+}
+function closeReModal(){ const m = document.getElementById('reModalBg'); if(m) m.classList.remove('show'); _reSide = null; }
+async function confirmReengrave(){
+  const r = _reSide; closeReModal();
+  if(!r) return;
+  let running = false;
+  try { const s = await API.lightburnStatus(); running = !!(s && s.running); } catch(e){ running = false; }
+  runEngrave(r.pi, r.si, running, true);
+}
+
 async function engrave(pi, si){
   if(busy) return;
   let running = false;
@@ -341,7 +360,7 @@ async function engrave(pi, si){
   runEngrave(pi, si, false);
 }
 
-async function runEngrave(pi, si, closePrevious){
+async function runEngrave(pi, si, closePrevious, isRedo){
   if(busy) return;
   const p = CURRENT.products[pi], side = p.sides[si];
   if(active!==pi){ active=pi; }
@@ -360,7 +379,7 @@ async function runEngrave(pi, si, closePrevious){
     if(!fresh){ toast('Could not refresh order','error'); goDashboard(); return; }
     CURRENT = fresh;
     const np = tasksOf(CURRENT).find(t=>!t.s.engraved); if(np) active=np.pi;
-    toast(side.name+' engraved'+(allEng(CURRENT)?' · all done':''));
+    toast(side.name + (isRedo ? ' re-engraved' : (' engraved' + (allEng(CURRENT) ? ' · all done' : ''))));
   } catch(e){
     toast('Engrave failed','error');
   } finally {
@@ -517,6 +536,7 @@ setInterval(pollLightBurn, 3000); pollLightBurn();
 /* ===== bootstrap ===== */
 window.addEventListener('pywebviewready', loadDashboard);
 document.addEventListener('DOMContentLoaded', () => { showView('dashboard'); });
-document.addEventListener('keydown', e=>{ if(e.key==='Escape'){ closeModal(); closeLbModal(); } });
+document.addEventListener('keydown', e=>{ if(e.key==='Escape'){ closeModal(); closeLbModal(); closeReModal(); } });
 document.getElementById('modalBg').addEventListener('click', e=>{ if(e.target.id==='modalBg') closeModal(); });
 document.getElementById('lbModalBg').addEventListener('click', e=>{ if(e.target.id==='lbModalBg') closeLbModal(); });
+document.getElementById('reModalBg').addEventListener('click', e=>{ if(e.target.id==='reModalBg') closeReModal(); });
