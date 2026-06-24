@@ -51,6 +51,16 @@ async function loadDashboard(){
   renderBanner(res && res.error);
   renderDashboard();
 }
+async function doRefresh(){
+  const btn=document.getElementById('refreshBtn');
+  if(btn){ btn.classList.add('is-loading'); btn.disabled=true; }
+  try {
+    await loadDashboard();
+    toast('Orders updated','success');
+  } finally {
+    if(btn){ btn.classList.remove('is-loading'); btn.disabled=false; }
+  }
+}
 function showDashboardSkeleton(){
   document.getElementById('dashSub').textContent='Loading…';
   let s=''; for(let i=0;i<5;i++){ s+='<div class="lrow skel"><div class="sk sk-a"></div><div class="sk sk-b"></div><div class="sk sk-c"></div><div class="sk sk-d"></div><div class="sk sk-c"></div><div></div></div>'; }
@@ -279,6 +289,10 @@ async function engrave(pi, si){
   const p = CURRENT.products[pi], side = p.sides[si];
   if(active!==pi){ active=pi; }
   busy=true; renderOrder();
+  const engBtnEl=document.getElementById('engraveBtn');
+  if(engBtnEl) engBtnEl.classList.add('is-loading');
+  const sideBtnEl=document.querySelectorAll('#sides .side .sbtn')[si];
+  if(sideBtnEl) sideBtnEl.classList.add('is-loading');
   document.getElementById('livePillText').textContent='Opening LightBurn…';
   const tok = viewToken;
   try {
@@ -294,6 +308,8 @@ async function engrave(pi, si){
     toast('Engrave failed','error');
   } finally {
     busy=false;
+    if(engBtnEl) engBtnEl.classList.remove('is-loading');
+    if(sideBtnEl) sideBtnEl.classList.remove('is-loading');
     if(tok===viewToken) renderOrder();
   }
 }
@@ -317,10 +333,11 @@ async function confirmShip(){
   if(busy) return;
   const orderNumber = CURRENT.order_number;
   busy=true;
+  const shipBtnEl=document.querySelector('#modalBg .cta.secondary');
+  if(shipBtnEl) shipBtnEl.classList.add('is-loading');
   const tok = viewToken;
   try {
     const res = await API.shipOrder(orderNumber);
-    closeModal();
     if(tok!==viewToken) return;              // operator navigated away mid-ship
     if(!res || !res.ok){ toast((res && res.error)||'Cannot ship','error'); return; }
     toast('"'+orderNumber+'" shipped');
@@ -332,6 +349,8 @@ async function confirmShip(){
     toast('Cannot ship','error');
   } finally {
     busy=false;
+    if(shipBtnEl) shipBtnEl.classList.remove('is-loading');
+    closeModal();
     if(tok===viewToken) renderOrder();
   }
 }
