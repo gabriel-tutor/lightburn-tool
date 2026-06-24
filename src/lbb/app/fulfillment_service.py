@@ -159,7 +159,8 @@ class FulfillmentService:
         return {"ok": True, "data_uri": f"data:{mime};base64,{b64}"}
 
     # ── commands ──────────────────────────────────────────────────────────
-    def engrave_side(self, order_number: str, file_key: str) -> dict:
+    def engrave_side(self, order_number: str, file_key: str,
+                     close_previous: bool = False) -> dict:
         o = self.gateway.get(order_number)
         if o is None:
             return {"ok": False, "error": "Order not found"}
@@ -167,6 +168,12 @@ class FulfillmentService:
             return {"ok": False, "error": "Unknown engraving file"}
         try:
             pdf = self.gateway.download_file(o.order_id, file_key, self._dir(o))
+            if close_previous:
+                # Force-close the previous LightBurn job so the new PDF opens in
+                # a fresh workspace with no "Save changes?" prompt. Safe when not
+                # running. Done after a successful download so a download failure
+                # never needlessly kills LightBurn.
+                self.lightburn.close_running()
             self.lightburn.load_file(pdf)
         except (EngravingApiError, LbbError, OSError) as e:
             return {"ok": False, "error": str(e)}
