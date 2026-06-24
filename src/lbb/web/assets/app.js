@@ -25,6 +25,7 @@ let CURRENT = null;  // full order detail for the open order
 let active=0, busy=false;
 let viewToken = 0;                 // bumped on every navigation; guards stale async
 function nextToken(){ return ++viewToken; }
+let lastLoadError=false;           // true when the most recent dashboard load failed
 
 /* ===== helpers ===== */
 const GIFT_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 12v10H4V12"/><rect x="2" y="7" width="20" height="5"/><path d="M12 22V7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>';
@@ -50,7 +51,16 @@ async function loadDashboard(){
   const res = await API.listOrders(filter, q);
   ALL_ORDERS = (res && res.orders) || [];
   ORDERS = filterOrders(ALL_ORDERS, q);
+  lastLoadError = !!(res && res.error);
   renderBanner(res && res.error);
+  const upd=document.getElementById('dashUpdated');
+  if(upd){
+    if(lastLoadError){ upd.textContent=''; }
+    else {
+      const d=new Date(), hh=String(d.getHours()).padStart(2,'0'), mm=String(d.getMinutes()).padStart(2,'0');
+      upd.textContent='Updated '+hh+':'+mm;
+    }
+  }
   renderDashboard();
 }
 function filterOrders(list, q){
@@ -83,8 +93,10 @@ function renderBanner(error){
     bar = document.createElement('div'); bar.id='apiBanner'; bar.className='api-banner';
     document.body.prepend(bar);
   }
-  if(error){ bar.textContent = '⚠ '+error+' — check the API key in ~/.flanacom-tool/config.json'; bar.hidden=false; }
-  else { bar.hidden = true; }
+  if(error){
+    bar.innerHTML='<span>⚠ '+error+'</span> <button class="bnr-btn" onclick="loadDashboard()">Retry</button><button class="bnr-x" onclick="this.parentNode.hidden=true">✕</button>';
+    bar.hidden=false;
+  } else bar.hidden=true;
 }
 
 /* ===== views ===== */
@@ -122,7 +134,19 @@ function renderDashboard(){
         +'<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>'
         +'</button>';
     });
-  } else html+='<div class="empty">No orders match your search.</div>';
+  } else {
+    const q = document.getElementById('searchInput').value || '';
+    const chip = document.querySelector('#filterChips .chip.active')?.dataset.f || 'all';
+    if(lastLoadError){
+      html+='<div class="empty">Couldn\'t reach Flanacom — use Retry above</div>';
+    } else if(q){
+      html+='<div class="empty">No orders match "'+q+'"</div>';
+    } else if(chip==='done'){
+      html+='<div class="empty">No shipped orders yet</div>';
+    } else {
+      html+='<div class="empty cheer">All caught up — no open orders ✓</div>';
+    }
+  }
   document.getElementById('orderList').innerHTML=html;
 }
 
