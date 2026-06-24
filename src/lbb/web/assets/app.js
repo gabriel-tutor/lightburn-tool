@@ -10,8 +10,10 @@ function productSVG(type,color){
     shape='<ellipse cx="100" cy="80" rx="64" ry="40" fill="none" stroke="'+f+'" stroke-width="11"/><rect x="74" y="63" width="52" height="34" rx="8" fill="'+f+'"/>';
   } else if(type==='Keychain'){
     shape='<circle cx="66" cy="78" r="26" fill="none" stroke="'+f+'" stroke-width="11"/><rect x="88" y="72" width="74" height="13" rx="6" fill="'+f+'"/><rect x="150" y="85" width="9" height="15" rx="2" fill="'+f+'"/><rect x="134" y="85" width="9" height="11" rx="2" fill="'+f+'"/>';
-  } else if(type==='Flask'){
+  } else if(type==='Flask'||type==='MiniFlask'){
     shape='<rect x="88" y="30" width="24" height="15" rx="3" fill="'+f+'"/><path d="M68 47 h64 a12 12 0 0 1 12 12 v40 a18 18 0 0 1 -18 18 h-52 a18 18 0 0 1 -18 -18 v-40 a12 12 0 0 1 12 -12 z" fill="'+f+'"/>';
+  } else if(type==='Lighter'){
+    shape='<path d="M104 30 l8 14 -8 6 z" fill="'+f+'"/><rect x="80" y="50" width="40" height="14" rx="4" fill="'+f+'"/><rect x="72" y="62" width="56" height="62" rx="12" fill="'+f+'"/>';
   } else { shape='<rect x="60" y="45" width="80" height="60" rx="12" fill="'+f+'"/>'; }
   return '<svg viewBox="0 0 200 150" xmlns="http://www.w3.org/2000/svg">'+DEFS+shape+'</svg>';
 }
@@ -497,3 +499,5 @@ setInterval(pollLightBurn, 3000); pollLightBurn();
 /* ===== bootstrap ===== */
 window.addEventListener('pywebviewready', loadDashboard);
 document.addEventListener('DOMContentLoaded', () => { showView('dashboard'); });
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeModal(); });
+document.getElementById('modalBg').addEventListener('click', e=>{ if(e.target.id==='modalBg') closeModal(); });
