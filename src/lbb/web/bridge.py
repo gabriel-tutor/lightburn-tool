@@ -13,6 +13,19 @@ import sys
 import webbrowser
 
 
+def _as_url(target: str) -> str:
+    """Normalize an order link to an openable URL. Some data sources store a
+    bare domain (e.g. 'www.test.de') with no scheme; without this, the OS would
+    treat it as a file path and nothing would open. Already-schemed URLs and
+    blank/'#' values pass through unchanged."""
+    t = (target or "").strip()
+    if not t or t == "#":
+        return t
+    if t.startswith(("http://", "https://", "mailto:")):
+        return t
+    return "https://" + t
+
+
 class JsApiBridge:
     def __init__(self, service):
         self._svc = service
@@ -45,7 +58,7 @@ class JsApiBridge:
 
     # ── shell helpers ──
     def open_amazon(self, url):
-        return self._open(url) or {"ok": True}
+        return self._open(_as_url(url)) or {"ok": True}
 
     def open_label(self, order_number):
         path = self._svc.label_file(order_number)

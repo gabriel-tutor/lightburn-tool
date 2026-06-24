@@ -198,7 +198,9 @@ async function loadProductPhoto(orderNumber, idx){
 async function firstOpenOrder(){
   const res = await API.listOrders('all', '');
   const list = (res && res.orders) || [];
-  const o = list.find(c => c.status !== 'graviert_verschickt');
+  // Skip already-shipped AND malformed 0-side orders (nothing to engrave and the
+  // API won't let them ship), so the queue never dead-ends on a disabled screen.
+  const o = list.find(c => c.status !== 'graviert_verschickt' && (!c.progress || c.progress.total > 0));
   return o ? o.order_number : null;
 }
 
