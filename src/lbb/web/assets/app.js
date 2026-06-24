@@ -45,10 +45,16 @@ function statusOf(o){
 async function loadDashboard(){
   const filter = document.querySelector('#filterChips .chip.active')?.dataset.f || 'all';
   const q = document.getElementById('searchInput').value || '';
+  showDashboardSkeleton();
   const res = await API.listOrders(filter, q);
   ORDERS = (res && res.orders) || [];
   renderBanner(res && res.error);
   renderDashboard();
+}
+function showDashboardSkeleton(){
+  document.getElementById('dashSub').textContent='Loading…';
+  let s=''; for(let i=0;i<5;i++){ s+='<div class="lrow skel"><div class="sk sk-a"></div><div class="sk sk-b"></div><div class="sk sk-c"></div><div class="sk sk-d"></div><div class="sk sk-c"></div><div></div></div>'; }
+  document.getElementById('orderList').innerHTML=s;
 }
 function renderBanner(error){
   let bar = document.getElementById('apiBanner');
@@ -104,12 +110,20 @@ function firstPendingProduct(o){ const np=tasksOf(o).find(t=>!t.s.engraved); ret
 
 async function openOrder(orderNumber){
   const tok = nextToken();
+  showView('order'); showOrderSkeleton(orderNumber);
   const o = await API.getOrder(orderNumber);
   if(tok!==viewToken) return;                // a newer navigation won
-  if(!o){ toast('Order not found','error'); return; }
+  if(!o){ toast('Order not found','error'); goDashboard(); return; }
   CURRENT = o;
   active = firstPendingProduct(CURRENT);
-  showView('order'); renderOrder();
+  renderOrder();
+}
+function showOrderSkeleton(orderNumber){
+  document.getElementById('ordNo').textContent='#'+orderNumber;
+  document.getElementById('productVisual').innerHTML='<div class="sk sk-photo"></div>';
+  document.getElementById('orderKv').innerHTML='<div class="sk sk-row"></div><div class="sk sk-row"></div><div class="sk sk-row"></div>';
+  document.getElementById('prodKv').innerHTML='<div class="sk sk-row"></div><div class="sk sk-row"></div>';
+  document.getElementById('sides').innerHTML='<div class="sk sk-side"></div><div class="sk sk-side"></div>';
 }
 
 async function loadProductPhoto(orderNumber, idx){

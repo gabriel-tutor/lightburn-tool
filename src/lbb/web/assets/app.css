@@ -273,3 +273,10 @@
 .flow.revision{border-color:#e6b877;background:#fff7ec}
 .flow-rev{display:flex;align-items:center;gap:8px;color:#a85b00;font-weight:600;font-size:13px;margin-left:auto}
 .flow-rev svg{width:16px;height:16px}
+@keyframes shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}
+.sk{background:#ece6da;background-image:linear-gradient(90deg,#ece6da 0,#f5f1e8 40px,#ece6da 80px);background-size:600px 100%;animation:shimmer 1.1s infinite linear;border-radius:8px;height:14px}
+.lrow.skel{pointer-events:none}
+.lrow.skel .sk-a{width:70%}.lrow.skel .sk-b{width:60%}.lrow.skel .sk-c{width:40%}.lrow.skel .sk-d{width:50%}
+.sk-photo{width:100%;height:100%;min-height:220px;border-radius:14px}
+.sk-row{height:18px;margin:8px 0;width:100%}
+.sk-side{height:54px;margin:8px 0;border-radius:12px}
