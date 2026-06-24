@@ -25,8 +25,8 @@ class FakeService:
         self.calls.append(("get", n))
         return {"order_number": n}
 
-    def engrave_side(self, n, file_key):
-        self.calls.append(("engrave", n, file_key))
+    def engrave_side(self, n, file_key, close_previous=False):
+        self.calls.append(("engrave", n, file_key, close_previous))
         return {"ok": True}
 
     def ship_order(self, n):
@@ -62,7 +62,17 @@ def test_bridge_delegates_queries_and_commands():
     assert b.set_status("306-1", "revision") == {"ok": True}
     assert b.flag_revision("306-1") == {"ok": True}
     assert b.lightburn_status() == {"running": True}
-    assert ("engrave", "306-1", "engraving/x Front.pdf") in svc.calls
+    assert ("engrave", "306-1", "engraving/x Front.pdf", False) in svc.calls
+
+
+def test_bridge_passes_close_previous():
+    svc = FakeService()
+    b = JsApiBridge(svc)
+    b.engrave_side("306-1", "engraving/x Front.pdf", True)
+    assert ("engrave", "306-1", "engraving/x Front.pdf", True) in svc.calls
+    # default is False when omitted
+    b.engrave_side("306-1", "engraving/x Front.pdf")
+    assert ("engrave", "306-1", "engraving/x Front.pdf", False) in svc.calls
 
 
 def test_open_label_when_missing_returns_error():
