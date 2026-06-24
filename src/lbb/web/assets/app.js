@@ -17,7 +17,8 @@ function productSVG(type,color){
 }
 
 /* ===== live data state ===== */
-let ORDERS = [];     // dashboard cards from the backend
+let ALL_ORDERS = []; // full set from the backend (unfiltered by search)
+let ORDERS = [];     // dashboard cards after client-side search filter
 let CURRENT = null;  // full order detail for the open order
 
 /* ===== ui state ===== */
@@ -47,9 +48,19 @@ async function loadDashboard(){
   const q = document.getElementById('searchInput').value || '';
   showDashboardSkeleton();
   const res = await API.listOrders(filter, q);
-  ORDERS = (res && res.orders) || [];
+  ALL_ORDERS = (res && res.orders) || [];
+  ORDERS = filterOrders(ALL_ORDERS, q);
   renderBanner(res && res.error);
   renderDashboard();
+}
+function filterOrders(list, q){
+  const needle=(q||'').toLowerCase().replace(/\s/g,'');
+  if(!needle) return list.slice();
+  return list.filter(c => (c.order_number||'').toLowerCase().replace(/\s/g,'').includes(needle));
+}
+function onSearchInput(){
+  ORDERS = filterOrders(ALL_ORDERS, document.getElementById('searchInput').value||'');
+  renderDashboard();                 // instant, no network
 }
 async function doRefresh(){
   const btn=document.getElementById('refreshBtn');
@@ -136,19 +147,23 @@ function showOrderSkeleton(orderNumber){
   document.getElementById('sides').innerHTML='<div class="sk sk-side"></div><div class="sk sk-side"></div>';
 }
 
+const PHOTO_CACHE={};   // keyed by order_number+'#'+idx -> data_uri
 async function loadProductPhoto(orderNumber, idx){
-  let res;
-  try { res = await API.productImage(orderNumber, idx); }
-  catch(e){ return; }                    // keep the icon on any failure
-  // ignore if the operator moved to another product/order while loading
-  if(!CURRENT || CURRENT.order_number!==orderNumber || active!==idx) return;
-  if(res && res.ok && res.data_uri){
+  const key=orderNumber+'#'+idx;
+  const apply=(uri)=>{
+    // ignore if the operator moved to another product/order while loading
+    if(!CURRENT || CURRENT.order_number!==orderNumber || active!==idx) return;
     const img=document.getElementById('prodPhoto');
     if(img){
       img.onload=function(){ img.hidden=false; const ic=document.querySelector('#productVisual .prod-icon'); if(ic) ic.style.display='none'; };
-      img.src=res.data_uri;
+      img.src=uri;
     }
-  }
+  };
+  if(PHOTO_CACHE[key]){ apply(PHOTO_CACHE[key]); return; }
+  let res;
+  try { res = await API.productImage(orderNumber, idx); }
+  catch(e){ return; }                    // keep the icon on any failure
+  if(res && res.ok && res.data_uri){ PHOTO_CACHE[key]=res.data_uri; apply(res.data_uri); }
 }
 
 // Next order still needing work, from the FULL set (ignores the dashboard's
