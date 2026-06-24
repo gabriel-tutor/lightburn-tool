@@ -30,7 +30,8 @@ live API. Items the audit confirmed already-correct are explicitly preserved.
 ### A1. Bounded retry + backoff in the HTTP transport
 `UrllibTransport.request` currently makes one attempt; any `URLError`/timeout/
 `OSError` raises, and a single flaky GET empties the whole dashboard. Add bounded
-retry (default 3 attempts) with exponential backoff + jitter for: transport
+retry (default 3 attempts) with deterministic exponential backoff (single-client
+desktop tool — no thundering-herd risk, so jitter is unnecessary) for: transport
 exceptions (`URLError`/`TimeoutError`/`OSError`) and retryable HTTP status codes
 (`429`, `500`, `502`, `503`, `504`). Do NOT retry other 4xx. Backoff is injectable
 (a `sleep` callable) so tests run instantly. GET and POST both benefit; POST
