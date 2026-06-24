@@ -22,12 +22,14 @@ let CURRENT = null;  // full order detail for the open order
 
 /* ===== ui state ===== */
 let active=0, busy=false;
+let viewToken = 0;                 // bumped on every navigation; guards stale async
+function nextToken(){ return ++viewToken; }
 
 /* ===== helpers ===== */
 const GIFT_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 12v10H4V12"/><rect x="2" y="7" width="20" height="5"/><path d="M12 22V7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>';
 
 // Works on a full order detail object (CURRENT). sides use .name and .engraved.
-function tasksOf(o){const t=[];o.products.forEach((p,pi)=>p.sides.forEach((s,si)=>t.push({pi,si,s,p})));return t;}
+function tasksOf(o){const t=[];(o.products||[]).forEach((p,pi)=>p.sides.forEach((s,si)=>t.push({pi,si,s,p})));return t;}
 function doneOf(o){return tasksOf(o).filter(t=>t.s.engraved).length;}
 function totOf(o){return tasksOf(o).length;}
 function allEng(o){return totOf(o)>0 && doneOf(o)===totOf(o);}
@@ -60,6 +62,7 @@ function renderBanner(error){
 
 /* ===== views ===== */
 function showView(v){
+  if(v==='dashboard') nextToken();          // abandon any in-flight order load
   document.getElementById('view-dashboard').hidden=v!=='dashboard';
   document.getElementById('view-order').hidden=v!=='order';
   document.getElementById('actionbar').style.display=v==='order'?'flex':'none';
@@ -100,8 +103,11 @@ function renderDashboard(){
 function firstPendingProduct(o){ const np=tasksOf(o).find(t=>!t.s.engraved); return np?np.pi:0; }
 
 async function openOrder(orderNumber){
-  CURRENT = await API.getOrder(orderNumber);
-  if(!CURRENT){ toast('Order not found','error'); return; }
+  const tok = nextToken();
+  const o = await API.getOrder(orderNumber);
+  if(tok!==viewToken) return;                // a newer navigation won
+  if(!o){ toast('Order not found','error'); return; }
+  CURRENT = o;
   active = firstPendingProduct(CURRENT);
   showView('order'); renderOrder();
 }
@@ -151,9 +157,11 @@ function renderOrder(){
   const amLink=document.getElementById('amazonLink');
   const hasAmazon = O.amazon_url && O.amazon_url !== '#' && O.amazon_url !== '';
   amLink.style.opacity = hasAmazon ? '1' : '.5';
-  amLink.onclick = hasAmazon ? null : function(e){ e.preventDefault(); API.openAmazon(O.amazon_url); };
+  amLink.style.pointerEvents = hasAmazon ? 'auto' : 'none';
   amLink.href = '#';
-  if(hasAmazon){ amLink.onclick = function(e){ e.preventDefault(); API.openAmazon(O.amazon_url); }; }
+  amLink.onclick = hasAmazon
+    ? function(e){ e.preventDefault(); openExternal(O.amazon_url); }
+    : function(e){ e.preventDefault(); };       // inert when no URL
 
   // Label
   document.getElementById('labelCarrier').textContent = O.has_label ? 'Shipping label' : '—';
@@ -183,8 +191,8 @@ function renderOrder(){
    +'<div class="k">Order date</div><div class="v">'+(O.placed_label||'')+'</div>'
    +(O.created_label?'<div class="k">Received</div><div class="v">'+O.created_label+'</div>':'')
    +(O.updated_label?'<div class="k">Last updated</div><div class="v">'+O.updated_label+'</div>':'')
-   +'<div class="k">Link to Order</div><div class="v">'+(hasAmazon?'<a href="#" onclick="API.openAmazon(CURRENT.amazon_url);return false;">Open on Amazon ↗</a>':'<span style="color:var(--ink-faint)">—</span>')+'</div>'
-   +(O.link_to_graphic?'<div class="k">Graphic</div><div class="v"><a href="#" onclick="API.openAmazon(CURRENT.link_to_graphic);return false;">Open graphic ↗</a></div>':'')
+   +'<div class="k">Link to Order</div><div class="v">'+(hasAmazon?'<a href="#" onclick="openExternal(CURRENT.amazon_url);return false;">Open on Amazon ↗</a>':'<span style="color:var(--ink-faint)">—</span>')+'</div>'
+   +(O.link_to_graphic?'<div class="k">Graphic</div><div class="v"><a href="#" onclick="openExternal(CURRENT.link_to_graphic);return false;">Open graphic ↗</a></div>':'')
    +'<div class="k">Gift box</div><div class="v">'+(O.gift_box?'<span class="badge gift">'+GIFT_SVG+' With gift box</span>':'<span style="color:var(--ink-faint)">No</span>')+'</div>'
    +'<div class="k">Items</div><div class="v">'+(O.amount||O.products.length)+'</div>';
 
@@ -258,14 +266,22 @@ async function engrave(pi, si){
   if(active!==pi){ active=pi; }
   busy=true; renderOrder();
   document.getElementById('livePillText').textContent='Opening LightBurn…';
-  const res = await API.engraveSide(CURRENT.order_number, side.file_key);
-  busy=false;
-  if(!res || !res.ok){ toast((res && res.error) || 'Engrave failed','error'); renderOrder(); return; }
-  CURRENT = await API.getOrder(CURRENT.order_number);
-  if(!CURRENT){ toast('Could not refresh order','error'); goDashboard(); return; }
-  const np = tasksOf(CURRENT).find(t=>!t.s.engraved); if(np) active=np.pi;
-  renderOrder();
-  toast(side.name+' engraved'+(allEng(CURRENT)?' · all done':''));
+  const tok = viewToken;
+  try {
+    const res = await API.engraveSide(CURRENT.order_number, side.file_key);
+    if(!res || !res.ok){ toast((res && res.error) || 'Engrave failed','error'); return; }
+    const fresh = await API.getOrder(CURRENT.order_number);
+    if(tok!==viewToken) return;              // operator navigated away
+    if(!fresh){ toast('Could not refresh order','error'); goDashboard(); return; }
+    CURRENT = fresh;
+    const np = tasksOf(CURRENT).find(t=>!t.s.engraved); if(np) active=np.pi;
+    toast(side.name+' engraved'+(allEng(CURRENT)?' · all done':''));
+  } catch(e){
+    toast('Engrave failed','error');
+  } finally {
+    busy=false;
+    if(tok===viewToken) renderOrder();
+  }
 }
 
 async function engraveNext(){
@@ -284,15 +300,26 @@ function askShip(){
 function closeModal(){ document.getElementById('modalBg').classList.remove('show'); }
 
 async function confirmShip(){
+  if(busy) return;
   const orderNumber = CURRENT.order_number;
-  const res = await API.shipOrder(orderNumber);
-  closeModal();
-  if(!res || !res.ok){ toast((res && res.error)||'Cannot ship','error'); return; }
-  toast('"'+orderNumber+'" shipped');
-  await loadDashboard();
-  const n = await firstOpenOrder();
-  if(n){ await openOrder(n); }
-  else { goDashboard(); toast('All open orders done!','info'); }
+  busy=true;
+  const tok = viewToken;
+  try {
+    const res = await API.shipOrder(orderNumber);
+    closeModal();
+    if(tok!==viewToken) return;              // operator navigated away mid-ship
+    if(!res || !res.ok){ toast((res && res.error)||'Cannot ship','error'); return; }
+    toast('"'+orderNumber+'" shipped');
+    await loadDashboard();
+    const n = await firstOpenOrder();
+    if(n){ await openOrder(n); }
+    else { goDashboard(); toast('All open orders done!','info'); }
+  } catch(e){
+    toast('Cannot ship','error');
+  } finally {
+    busy=false;
+    if(tok===viewToken) renderOrder();
+  }
 }
 
 async function onStatusSelect(v){
@@ -302,24 +329,57 @@ async function onStatusSelect(v){
     else toast('Engrave all sides first','error');
     renderOrder(); return;
   }
-  const res = await API.setStatus(CURRENT.order_number, v);
-  if(!res || !res.ok){ toast((res && res.error)||'Status change failed','error'); }
-  CURRENT = await API.getOrder(CURRENT.order_number);
-  if(!CURRENT){ toast('Could not refresh order','error'); goDashboard(); return; }
-  renderOrder();
-  if(v==='revision') toast('Flagged for revision','info');
+  busy=true;
+  const tok = viewToken;
+  try {
+    const res = await API.setStatus(CURRENT.order_number, v);
+    if(!res || !res.ok){ toast((res && res.error)||'Status change failed','error'); }
+    const fresh = await API.getOrder(CURRENT.order_number);
+    if(tok!==viewToken) return;              // operator navigated away
+    if(!fresh){ toast('Could not refresh order','error'); goDashboard(); return; }
+    CURRENT = fresh;
+    if(v==='revision') toast('Flagged for revision','info');
+  } catch(e){
+    toast('Status change failed','error');
+  } finally {
+    busy=false;
+    if(tok===viewToken) renderOrder();
+  }
 }
 
 async function flagRevision(){
-  if(!CURRENT) return;
-  const res = await API.flagRevision(CURRENT.order_number);
-  if(!res || !res.ok){ toast((res && res.error)||'Could not flag','error'); return; }
-  CURRENT = await API.getOrder(CURRENT.order_number);
-  renderOrder();
-  toast('Order flagged for revision','info');
+  if(!CURRENT || busy) return;
+  busy=true;
+  const tok = viewToken;
+  try {
+    const res = await API.flagRevision(CURRENT.order_number);
+    if(!res || !res.ok){ toast((res && res.error)||'Could not flag','error'); return; }
+    const fresh = await API.getOrder(CURRENT.order_number);
+    if(tok!==viewToken) return;              // operator navigated away
+    if(!fresh){ toast('Could not refresh order','error'); goDashboard(); return; }
+    CURRENT = fresh;
+    toast('Order flagged for revision','info');
+  } catch(e){
+    toast('Could not flag','error');
+  } finally {
+    busy=false;
+    if(tok===viewToken) renderOrder();
+  }
 }
 
-function copyOrder(){ navigator.clipboard?.writeText(CURRENT.order_number); toast('Order number copied'); }
+async function copyOrder(){
+  const text = CURRENT && CURRENT.order_number; if(!text) return;
+  let ok=false;
+  try { if(navigator.clipboard && navigator.clipboard.writeText){ await navigator.clipboard.writeText(text); ok=true; } } catch(e){}
+  if(!ok){
+    try {
+      const ta=document.createElement('textarea'); ta.value=text;
+      ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta);
+      ta.focus(); ta.select(); ok=document.execCommand('copy'); document.body.removeChild(ta);
+    } catch(e){ ok=false; }
+  }
+  toast(ok?'Order number copied':'Could not copy', ok?'success':'error');
+}
 const TOAST_ICONS = {
   success: '<path d="M20 6L9 17l-5-5"/>',
   error:   '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
@@ -336,6 +396,11 @@ function toast(msg, kind){
 }
 
 /* ===== label / instructions / amazon handlers ===== */
+async function openExternal(url){
+  if(!url || url==='#') return;
+  const r = await API.openAmazon(url);
+  if(r && !r.ok) toast(r.error||'Could not open link','error');
+}
 async function openLabel(){
   if(!CURRENT) return;
   const res = await API.openLabel(CURRENT.order_number);
@@ -349,7 +414,9 @@ async function printLabel(){
 
 /* ===== LightBurn live status poll ===== */
 async function pollLightBurn(){
-  const { running } = await API.lightburnStatus();
+  let res=null;
+  try { res = await API.lightburnStatus(); } catch(e){ return; }
+  const running = !!(res && res.running);
   const pill = document.getElementById('livePill');
   if(pill){ pill.classList.toggle('lb-off', !running); }
 }
