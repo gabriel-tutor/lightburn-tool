@@ -1,4 +1,16 @@
-from lbb.web.bridge import JsApiBridge
+from lbb.web.bridge import JsApiBridge, _as_url
+
+
+def test_as_url_adds_scheme_to_bare_domain():
+    assert _as_url("www.test.de") == "https://www.test.de"
+    assert _as_url("sellercentral.amazon.com/x") == "https://sellercentral.amazon.com/x"
+
+
+def test_as_url_passes_through_schemed_and_blank():
+    assert _as_url("https://x.com") == "https://x.com"
+    assert _as_url("http://x.com") == "http://x.com"
+    assert _as_url("") == ""
+    assert _as_url("#") == "#"
 
 
 class FakeService:
