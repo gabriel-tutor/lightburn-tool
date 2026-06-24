@@ -215,3 +215,40 @@ def test_get_order_includes_metadata_and_sides_summary(tmp_path):
     assert p["has_image"] is True
     assert p["coin_count"] == 2
     assert d["has_order_picture"] is False
+
+
+def test_product_image_corrupt_file_returns_not_ok(tmp_path, monkeypatch):
+    gw = FakeGateway([_order_with_image()])
+
+    # download "succeeds" but the file can't be read back
+    def boom_download(order_id, file_key, dest_dir):
+        # path that does not exist -> read_bytes raises OSError
+        return tmp_path / "x.png"
+
+    gw.download_file = boom_download
+    svc = FulfillmentService(gateway=gw, state=MemState(),
+                             lightburn=FakeLightBurn(), cache_dir=tmp_path)
+    assert svc.product_image("306-IMG", 0)["ok"] is False
+
+
+def test_engrave_side_lightburn_oserror_not_marked(tmp_path):
+    gw = FakeGateway([_order()])
+
+    class BoomLightBurn(FakeLightBurn):
+        def load_file(self, path):
+            raise OSError("LightBurn launch failed")
+
+    state = MemState()
+    svc = FulfillmentService(gateway=gw, state=state,
+                             lightburn=BoomLightBurn(), cache_dir=tmp_path)
+    res = svc.engrave_side("306-1", "engraving/x Front.pdf")
+    assert res["ok"] is False
+    assert state.engraved_keys("306-1") == set()   # NOT marked on failure
+
+
+def test_get_order_has_no_qty(tmp_path):
+    gw = FakeGateway([_order()])
+    svc = FulfillmentService(gateway=gw, state=MemState(),
+                             lightburn=FakeLightBurn(), cache_dir=tmp_path)
+    d = svc.get_order("306-1")
+    assert "qty" not in d["products"][0]

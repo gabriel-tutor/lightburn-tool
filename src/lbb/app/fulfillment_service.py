@@ -110,7 +110,6 @@ class FulfillmentService:
                     "name": p.product_type,
                     "color": p.coin_color,
                     "band_color": p.band_color,
-                    "qty": p.qty,
                     "image_key": p.image_key,
                     "multiple_coins": p.multiple_coins,
                     "special_length": p.special_length,
@@ -152,10 +151,11 @@ class FulfillmentService:
             return {"ok": False}
         try:
             path = self.gateway.download_file(o.order_id, p.image_key, self._dir(o))
-        except EngravingApiError as e:
+            data = path.read_bytes()
+        except (EngravingApiError, OSError) as e:
             return {"ok": False, "error": str(e)}
         mime = _IMAGE_MIME.get(Path(p.image_key).suffix.lower(), "application/octet-stream")
-        b64 = base64.b64encode(path.read_bytes()).decode("ascii")
+        b64 = base64.b64encode(data).decode("ascii")
         return {"ok": True, "data_uri": f"data:{mime};base64,{b64}"}
 
     # ── commands ──────────────────────────────────────────────────────────
@@ -168,7 +168,7 @@ class FulfillmentService:
         try:
             pdf = self.gateway.download_file(o.order_id, file_key, self._dir(o))
             self.lightburn.load_file(pdf)
-        except (EngravingApiError, LbbError) as e:
+        except (EngravingApiError, LbbError, OSError) as e:
             return {"ok": False, "error": str(e)}
         self.state.mark_engraved(order_number, file_key, True)
         done, total = self._progress(o)
