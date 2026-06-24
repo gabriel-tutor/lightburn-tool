@@ -104,6 +104,7 @@ function renderBanner(error){
 /* ===== views ===== */
 function showView(v){
   if(v==='dashboard') nextToken();          // abandon any in-flight order load
+  closeLbModal();                           // abandon any pending close-previous confirm on navigation
   document.getElementById('view-dashboard').hidden=v!=='dashboard';
   document.getElementById('view-order').hidden=v!=='order';
   document.getElementById('actionbar').style.display=v==='order'?'flex':'none';
@@ -329,7 +330,7 @@ function setActive(i){ if(busy) return; active=i; renderOrder(); }
 
 let _pendingEngrave = null;
 function askClosePrev(onYes){ _pendingEngrave = onYes; document.getElementById('lbModalBg').classList.add('show'); }
-function closeLbModal(){ document.getElementById('lbModalBg').classList.remove('show'); _pendingEngrave = null; }
+function closeLbModal(){ const m=document.getElementById('lbModalBg'); if(m) m.classList.remove('show'); _pendingEngrave = null; }
 function confirmClosePrev(){ const fn = _pendingEngrave; closeLbModal(); if(fn) fn(); }
 
 async function engrave(pi, si){
