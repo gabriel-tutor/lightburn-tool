@@ -183,6 +183,12 @@
   .side .sbtn.ok:hover{background:rgba(31,157,99,.2)}
   .side .sbtn.is-loading{color:transparent}
   .side .sbtn.is-loading::after{content:"";position:absolute;inset:0;margin:auto;width:15px;height:15px;border:2.2px solid rgba(255,255,255,.45);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite}
+  .side .sact{display:inline-flex;align-items:center;gap:8px}
+  .side .sdone{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:700;padding:8px 13px;border-radius:10px;background:var(--ok-soft);color:var(--ok-ink);border:1px solid rgba(31,157,99,.3)}
+  .side .sdone svg{width:14px;height:14px}
+  .side .sbtn.redo{background:transparent;color:var(--ink-soft);border-color:var(--line-strong);padding:8px 9px}
+  .side .sbtn.redo svg{width:15px;height:15px}
+  .side .sbtn.redo:hover{background:var(--accent-soft);color:var(--accent-ink);border-color:rgba(184,137,58,.4);transform:translateY(-1px)}
 
   .frow{display:flex;align-items:center;gap:13px;padding:13px 14px;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--glass-hi)}
   .frow .ficon{width:42px;height:42px;border-radius:10px;display:grid;place-items:center;flex:none;color:#fff;background:linear-gradient(135deg,#9a1f1f,#d14343)}
