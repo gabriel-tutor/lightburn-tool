@@ -101,7 +101,7 @@ function firstPendingProduct(o){ const np=tasksOf(o).find(t=>!t.s.engraved); ret
 
 async function openOrder(orderNumber){
   CURRENT = await API.getOrder(orderNumber);
-  if(!CURRENT){ toast('Order not found','gold'); return; }
+  if(!CURRENT){ toast('Order not found','error'); return; }
   active = firstPendingProduct(CURRENT);
   showView('order'); renderOrder();
 }
@@ -133,8 +133,8 @@ async function firstOpenOrder(){
 
 async function startEngraving(){
   const n = await firstOpenOrder();
-  if(n){ await openOrder(n); toast('Starting with '+n); }
-  else toast('No open orders to engrave','gold');
+  if(n){ await openOrder(n); toast('Starting with '+n,'info'); }
+  else toast('No open orders to engrave','info');
 }
 
 function renderOrder(){
@@ -260,9 +260,9 @@ async function engrave(pi, si){
   document.getElementById('livePillText').textContent='Opening LightBurn…';
   const res = await API.engraveSide(CURRENT.order_number, side.file_key);
   busy=false;
-  if(!res || !res.ok){ toast((res && res.error) || 'Engrave failed','gold'); renderOrder(); return; }
+  if(!res || !res.ok){ toast((res && res.error) || 'Engrave failed','error'); renderOrder(); return; }
   CURRENT = await API.getOrder(CURRENT.order_number);
-  if(!CURRENT){ toast('Could not refresh order','gold'); goDashboard(); return; }
+  if(!CURRENT){ toast('Could not refresh order','error'); goDashboard(); return; }
   const np = tasksOf(CURRENT).find(t=>!t.s.engraved); if(np) active=np.pi;
   renderOrder();
   toast(side.name+' engraved'+(allEng(CURRENT)?' · all done':''));
@@ -276,7 +276,7 @@ async function engraveNext(){
 
 function askShip(){
   const O=CURRENT;
-  if(!allEng(O)){ toast('Engrave all sides first','gold'); return; }
+  if(!allEng(O)){ toast('Engrave all sides first','error'); return; }
   document.getElementById('modalText').innerHTML='This marks <b>#'+O.order_number+'</b> as engraved &amp; shipped and opens the next order in the queue.';
   document.getElementById('modalGift').hidden = !O.gift_box;
   document.getElementById('modalBg').classList.add('show');
@@ -287,43 +287,50 @@ async function confirmShip(){
   const orderNumber = CURRENT.order_number;
   const res = await API.shipOrder(orderNumber);
   closeModal();
-  if(!res || !res.ok){ toast((res && res.error)||'Cannot ship','gold'); return; }
+  if(!res || !res.ok){ toast((res && res.error)||'Cannot ship','error'); return; }
   toast('"'+orderNumber+'" shipped');
   await loadDashboard();
   const n = await firstOpenOrder();
   if(n){ await openOrder(n); }
-  else { goDashboard(); toast('All open orders done!'); }
+  else { goDashboard(); toast('All open orders done!','info'); }
 }
 
 async function onStatusSelect(v){
   if(busy){ renderOrder(); return; }
   if(v==='graviert_verschickt'){
     if(allEng(CURRENT)) askShip();
-    else toast('Engrave all sides first','gold');
+    else toast('Engrave all sides first','error');
     renderOrder(); return;
   }
   const res = await API.setStatus(CURRENT.order_number, v);
-  if(!res || !res.ok){ toast((res && res.error)||'Status change failed','gold'); }
+  if(!res || !res.ok){ toast((res && res.error)||'Status change failed','error'); }
   CURRENT = await API.getOrder(CURRENT.order_number);
-  if(!CURRENT){ toast('Could not refresh order','gold'); goDashboard(); return; }
+  if(!CURRENT){ toast('Could not refresh order','error'); goDashboard(); return; }
   renderOrder();
-  if(v==='revision') toast('Flagged for revision','gold');
+  if(v==='revision') toast('Flagged for revision','info');
 }
 
 async function flagRevision(){
   if(!CURRENT) return;
   const res = await API.flagRevision(CURRENT.order_number);
-  if(!res || !res.ok){ toast((res && res.error)||'Could not flag','gold'); return; }
+  if(!res || !res.ok){ toast((res && res.error)||'Could not flag','error'); return; }
   CURRENT = await API.getOrder(CURRENT.order_number);
   renderOrder();
-  toast('Order flagged for revision','gold');
+  toast('Order flagged for revision','info');
 }
 
 function copyOrder(){ navigator.clipboard?.writeText(CURRENT.order_number); toast('Order number copied'); }
-function toast(msg,kind){
+const TOAST_ICONS = {
+  success: '<path d="M20 6L9 17l-5-5"/>',
+  error:   '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+  info:    '<circle cx="12" cy="12" r="9"/><path d="M12 8h.01"/><path d="M11 12h1v4h1"/>',
+};
+function toast(msg, kind){
+  if(kind==='gold'||kind==='pdf') kind='error';     // legacy aliases
+  if(!TOAST_ICONS[kind]) kind='success';
   const wrap=document.getElementById('toastWrap'); const el=document.createElement('div');
-  el.className='toast'+(kind==='gold'||kind==='pdf'?' gold':'');
-  el.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>'+msg;
+  el.className='toast '+kind;
+  el.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">'+TOAST_ICONS[kind]+'</svg><span>'+msg+'</span>';
   wrap.appendChild(el); requestAnimationFrame(()=>el.classList.add('show'));
   setTimeout(()=>{el.classList.remove('show');setTimeout(()=>el.remove(),300)},2600);
 }
@@ -332,12 +339,12 @@ function toast(msg,kind){
 async function openLabel(){
   if(!CURRENT) return;
   const res = await API.openLabel(CURRENT.order_number);
-  if(res && !res.ok) toast(res.error||'Cannot open label','gold');
+  if(res && !res.ok) toast(res.error||'Cannot open label','error');
 }
 async function printLabel(){
   if(!CURRENT) return;
   const res = await API.printLabel(CURRENT.order_number);
-  if(res && !res.ok) toast(res.error||'Cannot print label','gold');
+  if(res && !res.ok) toast(res.error||'Cannot print label','error');
 }
 
 /* ===== LightBurn live status poll ===== */

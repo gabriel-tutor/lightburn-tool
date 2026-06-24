@@ -234,6 +234,11 @@
   .toast{display:flex;align-items:center;gap:10px;font-size:13.5px;font-weight:600;color:#fff;background:rgba(23,26,33,.92);backdrop-filter:blur(10px);padding:11px 16px;border-radius:12px;box-shadow:var(--shadow);transform:translateY(12px);opacity:0;transition:.3s}
   .toast.show{transform:translateY(0);opacity:1}
   .toast svg{width:16px;height:16px;color:#7fe0a8} .toast.gold svg{color:#f2c970}
+  .toast.success svg{color:#2e9e5b}
+  .toast.error{border-color:#e6a3a3}
+  .toast.error svg{color:#d65745}
+  .toast.info svg{color:#2b6cb0}
+  .toast span{flex:1}
   [hidden]{display:none!important}
 
 /* live-API states */
